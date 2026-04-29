@@ -6,6 +6,7 @@ import { indexDocument } from "./semantic"
 import { initTS } from "../ts/tsIncremental"
 import { buildTSCallGraph } from "../ts/tsCallGraph"
 import { runOnIndex, runOnContextBuild } from "../plugins/pluginManager"
+import { buildManifest, writeManifest } from "./manifestBuilder"
 
 type FileCtx = {
   content: string
@@ -47,6 +48,9 @@ export function buildContext() {
 
   graph = buildTSCallGraph()
   runOnContextBuild(ctx)
+
+  const manifest = buildManifest()
+  writeManifest(manifest)
 }
 
 function walk(dir: string, onFile: (file: string) => void) {

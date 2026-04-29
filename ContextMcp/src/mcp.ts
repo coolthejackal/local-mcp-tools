@@ -13,6 +13,7 @@ import { buildSmartContext } from "./context/smartContext"
 import { buildFinalContext } from "./optimize/smartContextFinal"
 import { buildFunctionContext } from "./function/functionContext"
 import { findBug } from "./debug/smartBugFinder"
+import { searchManifest, loadAnnotations, isManifestStale } from "./core/manifestReader"
 import { CONFIG } from "./core/config"
 
 // ─── Minimal tip tanımları ────────────────────────────────────────────────────
@@ -110,6 +111,25 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["query"],
       },
     },
+    {
+      name: "read_manifest",
+      description:
+        "mcp-index.json manifest dosyasında hızlı arama yapar. " +
+        "Fonksiyon imzaları (parametre tipleri, return tipi), çağrı zinciri ve " +
+        "mcp-annotations.json'dan 'neden/domain/risk' notlarını döner. " +
+        "build_context gerektirmez — manifest varsa her zaman kullanılabilir. " +
+        "Dosya aramadan önce bu araçla önce imza bilgisi al.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Fonksiyon adı, domain veya anahtar kelime (örn: 'applyDiscount', 'pricing', 'hesapla')",
+          },
+        },
+        required: ["query"],
+      },
+    },
   ],
 }))
 
@@ -147,6 +167,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
 
       case "find_bugs":
         return { content: [{ type: "text", text: JSON.stringify(findBug(query()), null, 2) }] }
+
+      case "read_manifest": {
+        const hits = searchManifest(query())
+        const stale = isManifestStale()
+        const annotations = loadAnnotations()
+        const result = {
+          stale,
+          annotationFile: Object.keys(annotations).length > 0 ? "mcp-annotations.json yüklendi" : "mcp-annotations.json yok",
+          results: hits,
+        }
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
 
       default:
         throw new Error(`Bilinmeyen araç: ${name}`)

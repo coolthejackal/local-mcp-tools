@@ -6,6 +6,9 @@ ContextMcp/dist/
 .env
 .env.*
 
+# Otomatik üretilen manifest (build_context çalıştırınca yenilenir)
+mcp-index.json
+
 # Kullanıcıya özel MCP yapılandırması (.mcp.json.template olarak örnek sağlanıyor)
 .mcp.json
 
