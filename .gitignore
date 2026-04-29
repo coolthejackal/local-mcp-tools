@@ -1,0 +1,17 @@
+# Bağımlılıklar
+ContextMcp/node_modules/
+ContextMcp/dist/
+
+# Ortam ve gizli bilgiler
+.env
+.env.*
+
+# Kullanıcıya özel MCP yapılandırması (.mcp.json.template olarak örnek sağlanıyor)
+.mcp.json
+
+# Claude Code ve editör ayarları (kullanıcıya özel)
+.claude/
+.vscode/
+
+# Derleme çıktısı
+*.js.map
