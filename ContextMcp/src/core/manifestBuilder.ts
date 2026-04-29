@@ -34,9 +34,14 @@ export function buildManifest(): ManifestIndex {
     files: {},
   }
 
+  // Windows'ta TS forward slash, root'ta backslash kullanıyor — normalize et
+  const normalizedRoot = root.replace(/\\/g, "/")
+
   for (const sf of program.getSourceFiles()) {
     if (sf.isDeclarationFile) continue
-    if (!sf.fileName.startsWith(root)) continue
+
+    const normalizedFile = sf.fileName.replace(/\\/g, "/")
+    if (!normalizedFile.startsWith(normalizedRoot)) continue
 
     const relPath = path.relative(root, sf.fileName).replace(/\\/g, "/")
     const fileFunctions: ManifestFunction[] = []
@@ -47,7 +52,8 @@ export function buildManifest(): ManifestIndex {
     sf.statements.forEach((stmt) => {
       if (ts.isImportDeclaration(stmt) && ts.isStringLiteral(stmt.moduleSpecifier)) {
         const mod = stmt.moduleSpecifier.text
-        if (mod.startsWith(".")) dependencies.push(mod)
+        // Yerel import: ./ veya ../ veya @/ gibi alias'lar
+        if (mod.startsWith(".") || mod.startsWith("@/")) dependencies.push(mod)
       }
     })
 
