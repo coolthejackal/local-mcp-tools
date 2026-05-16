@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 
-namespace DotnetManifest;
+namespace ContextMcp.Roslyn;
 
 internal static class Extractor
 {

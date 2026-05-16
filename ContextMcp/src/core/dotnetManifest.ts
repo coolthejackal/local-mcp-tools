@@ -1,8 +1,8 @@
 import { execFileSync } from "child_process"
 import path from "path"
 
-// MCPTools/DotnetManifest — Roslyn tabanlı C# manifest üreticisi
-const DOTNET_MANIFEST_PROJECT = path.resolve(__dirname, "../../../DotnetManifest")
+// MCPTools/ContextMcp.Roslyn — Roslyn tabanlı C# manifest üreticisi
+const ROSLYN_PROJECT = path.resolve(__dirname, "../../../ContextMcp.Roslyn")
 
 /**
  * Roslyn aracını subprocess olarak çalıştırır.
@@ -12,7 +12,7 @@ export function runDotnetManifest(srcRoot: string, outPath: string): void {
   try {
     execFileSync(
       "dotnet",
-      ["run", "--project", DOTNET_MANIFEST_PROJECT, "--", srcRoot, outPath],
+      ["run", "--project", ROSLYN_PROJECT, "--", srcRoot, outPath],
       { stdio: ["ignore", "ignore", "inherit"] }
     )
   } catch (err) {
@@ -20,6 +20,6 @@ export function runDotnetManifest(srcRoot: string, outPath: string): void {
     if (e.code === "ENOENT") {
       throw new Error("'dotnet' CLI bulunamadı — .NET 9 SDK kurulu olmalı")
     }
-    throw new Error(`DotnetManifest çalışmadı (${srcRoot}): ${e.message}`)
+    throw new Error(`ContextMcp.Roslyn çalışmadı (${srcRoot}): ${e.message}`)
   }
 }

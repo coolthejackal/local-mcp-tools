@@ -5,8 +5,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>DotnetManifest</AssemblyName>
-    <RootNamespace>DotnetManifest</RootNamespace>
+    <AssemblyName>ContextMcp.Roslyn</AssemblyName>
+    <RootNamespace>ContextMcp.Roslyn</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 

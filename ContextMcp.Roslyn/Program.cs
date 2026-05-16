@@ -1,11 +1,11 @@
 using System.Text.Json;
 using Microsoft.CodeAnalysis.CSharp;
-using DotnetManifest;
+using ContextMcp.Roslyn;
 
 // Argümanlar: <kaynakKök> <çıktıDosyası>
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Kullanım: DotnetManifest <kaynakKök> <çıktıDosyası>");
+    Console.Error.WriteLine("Kullanım: ContextMcp.Roslyn <kaynakKök> <çıktıDosyası>");
     return 1;
 }
 
@@ -14,7 +14,7 @@ var outputFile = Path.GetFullPath(args[1]);
 
 if (!Directory.Exists(sourceRoot))
 {
-    Console.Error.WriteLine($"[DotnetManifest] Kaynak dizin bulunamadı: {sourceRoot}");
+    Console.Error.WriteLine($"[ContextMcp.Roslyn] Kaynak dizin bulunamadı: {sourceRoot}");
     return 1;
 }
 
@@ -46,5 +46,5 @@ var json = JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteI
 Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
 File.WriteAllText(outputFile, json);
 
-Console.Error.WriteLine($"[DotnetManifest] {files.Count} dosya işlendi → {outputFile}");
+Console.Error.WriteLine($"[ContextMcp.Roslyn] {files.Count} dosya işlendi → {outputFile}");
 return 0;

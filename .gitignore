@@ -20,6 +20,6 @@ mcp-index.json
 *.js.map
 
 # .NET (Roslyn manifest aracı) derleme çıktısı
-DotnetManifest/bin/
-DotnetManifest/obj/
+ContextMcp.Roslyn/bin/
+ContextMcp.Roslyn/obj/
 *.lscache

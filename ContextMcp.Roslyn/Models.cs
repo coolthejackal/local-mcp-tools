@@ -1,4 +1,4 @@
-namespace DotnetManifest;
+namespace ContextMcp.Roslyn;
 
 // JSON çıktısı mcp-index.json formatıyla uyumlu — alan adları TypeScript manifest'i ile aynı.
 
