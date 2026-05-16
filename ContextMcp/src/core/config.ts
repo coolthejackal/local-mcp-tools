@@ -14,7 +14,8 @@ function loadEnv(): void {
 
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
-      dotenv.config({ path: candidate })
+      // quiet: true — dotenv v17 banner'ı stdout'a yazıyor, MCP JSON-RPC'yi bozar
+      dotenv.config({ path: candidate, quiet: true })
       return
     }
   }
@@ -100,7 +101,7 @@ warnIfInsecure(SECURITY_CONFIG)
 export const CONFIG = {
   ROOT_DIR: ROOT,
 
-  ALLOWED_EXT: [".ts", ".tsx", ".js", ".jsx"],
+  ALLOWED_EXT: [".ts", ".tsx", ".js", ".jsx", ".cs"],
 
   EXCLUDED_DIRS: [
     "node_modules",
@@ -109,7 +110,10 @@ export const CONFIG = {
     "build",
     ".next",
     ".turbo",
-    "MCPTools"
+    "MCPTools",
+    "bin",
+    "obj",
+    "docs"
   ],
 
   MAX_FILE_SIZE: 50_000,

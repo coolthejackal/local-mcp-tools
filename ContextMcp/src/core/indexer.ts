@@ -7,6 +7,8 @@ import { initTS } from "../ts/tsIncremental"
 import { buildTSCallGraph } from "../ts/tsCallGraph"
 import { runOnIndex, runOnContextBuild } from "../plugins/pluginManager"
 import { buildManifest, writeManifest } from "./manifestBuilder"
+import { discoverSubProjects } from "./projectDiscovery"
+import { runDotnetManifest } from "./dotnetManifest"
 
 type FileCtx = {
   content: string
@@ -17,11 +19,11 @@ let ctx: Record<string, FileCtx> = {}
 let graph: Record<string, any[]> = {}
 
 export function buildContext() {
-  initTS()
-
   ctx = {}
+  graph = {}
   let count = 0
 
+  // TF-IDF / keyword indeksi — tüm CTX_ROOT (dil bağımsız)
   walk(CONFIG.ROOT_DIR, (file) => {
     if (count >= CONFIG.MAX_FILES) return
 
@@ -46,11 +48,48 @@ export function buildContext() {
     count++
   })
 
-  graph = buildTSCallGraph()
-  runOnContextBuild(ctx)
+  // Alt projeleri keşfet → her birine docs/monorepo/<ad>/ altında ayrı manifest
+  const subProjects = discoverSubProjects(CONFIG.ROOT_DIR)
+  ensureMonorepoGitignore()
 
-  const manifest = buildManifest()
-  writeManifest(manifest)
+  let tsGraphBuilt = false
+  for (const sub of subProjects) {
+    const outPath = path.join(
+      CONFIG.ROOT_DIR, "docs", "monorepo", sub.name, "mcp-index.json"
+    )
+    try {
+      if (sub.type === "dotnet") {
+        runDotnetManifest(sub.root, outPath)
+      } else {
+        initTS(sub.root)
+        writeManifest(buildManifest(sub.root), outPath)
+        if (!tsGraphBuilt) {
+          graph = buildTSCallGraph()
+          tsGraphBuilt = true
+        }
+      }
+    } catch (err) {
+      process.stderr.write(
+        `[ContextMCP] Manifest hatası (${sub.name}): ${(err as Error).message}\n`
+      )
+    }
+  }
+
+  runOnContextBuild(ctx)
+}
+
+// docs/monorepo/.gitignore — otomatik üretilen mcp-index.json'ları git dışı tutar
+function ensureMonorepoGitignore() {
+  const dir = path.join(CONFIG.ROOT_DIR, "docs", "monorepo")
+  fs.mkdirSync(dir, { recursive: true })
+  const gi = path.join(dir, ".gitignore")
+  if (!fs.existsSync(gi)) {
+    fs.writeFileSync(
+      gi,
+      "# Otomatik üretilen manifest (build_context yeniler) — annotation'lar commit'lenir\n*/mcp-index.json\n",
+      "utf-8"
+    )
+  }
 }
 
 function walk(dir: string, onFile: (file: string) => void) {

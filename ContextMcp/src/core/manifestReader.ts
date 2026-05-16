@@ -9,86 +9,131 @@ export type Annotation = {
   risk?: string
 }
 
-// { "src/services/orderService.ts": { "applyDiscount": { why: "...", domain: "pricing" } } }
+// { "src/services/orderService.ts": { "applyDiscount": { why, domain, risk } } }
 export type AnnotationMap = Record<string, Record<string, Annotation>>
 
 export type ManifestSearchResult = {
-  file: string
+  project: string                 // docs/monorepo altındaki alt proje adı
+  file: string                    // alt proje köküne göre göreli yol
+  absPath: string                 // çözümlenmiş mutlak yol
   function: ManifestFunction
   annotation?: Annotation
   matchType: "name" | "domain" | "keyword"
 }
 
-let cachedManifest: ManifestIndex | null = null
-let cachedAnnotations: AnnotationMap | null = null
-let manifestMtime: number = 0
-
-function manifestPath() {
-  return path.join(CONFIG.ROOT_DIR, "mcp-index.json")
+type LoadedManifest = {
+  project: string
+  manifest: ManifestIndex
+  annotations: AnnotationMap
 }
 
-function annotationPath() {
-  return path.join(CONFIG.ROOT_DIR, "mcp-annotations.json")
+let cache: LoadedManifest[] | null = null
+let cacheKey = ""
+
+function monorepoDir(): string {
+  return path.join(CONFIG.ROOT_DIR, "docs", "monorepo")
 }
 
-export function loadManifest(): ManifestIndex | null {
-  const p = manifestPath()
-  if (!fs.existsSync(p)) return null
+/**
+ * docs/monorepo/<alt-proje>/mcp-index.json dosyalarının tümünü okur.
+ * mtime tabanlı cache — dosya değişmediyse yeniden parse etmez.
+ */
+export function loadAllManifests(): LoadedManifest[] {
+  const dir = monorepoDir()
+  if (!fs.existsSync(dir)) return []
 
-  try {
-    const mtime = fs.statSync(p).mtimeMs
-    if (mtime !== manifestMtime) {
-      cachedManifest = JSON.parse(fs.readFileSync(p, "utf-8")) as ManifestIndex
-      manifestMtime = mtime
+  const subDirs = fs
+    .readdirSync(dir, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => e.name)
+
+  // cache anahtarı: alt proje + manifest mtime
+  const key = subDirs
+    .map((s) => {
+      try {
+        return `${s}:${fs.statSync(path.join(dir, s, "mcp-index.json")).mtimeMs}`
+      } catch {
+        return `${s}:0`
+      }
+    })
+    .join("|")
+
+  if (cache && cacheKey === key) return cache
+
+  const loaded: LoadedManifest[] = []
+  for (const sub of subDirs) {
+    const idxPath = path.join(dir, sub, "mcp-index.json")
+    if (!fs.existsSync(idxPath)) continue
+    try {
+      const manifest = JSON.parse(fs.readFileSync(idxPath, "utf-8")) as ManifestIndex
+      let annotations: AnnotationMap = {}
+      const annPath = path.join(dir, sub, "mcp-annotations.json")
+      if (fs.existsSync(annPath)) {
+        try {
+          annotations = JSON.parse(fs.readFileSync(annPath, "utf-8")) as AnnotationMap
+        } catch {
+          // bozuk annotation dosyası yok sayılır
+        }
+      }
+      loaded.push({ project: sub, manifest, annotations })
+    } catch {
+      // bozuk manifest atlanır
     }
-    return cachedManifest
-  } catch {
-    return null
   }
+
+  cache = loaded
+  cacheKey = key
+  return loaded
 }
 
-export function loadAnnotations(): AnnotationMap {
-  if (cachedAnnotations) return cachedAnnotations
-  const p = annotationPath()
-  if (!fs.existsSync(p)) return {}
-  try {
-    cachedAnnotations = JSON.parse(fs.readFileSync(p, "utf-8")) as AnnotationMap
-  } catch {
-    cachedAnnotations = {}
-  }
-  return cachedAnnotations
+export function listProjects(): string[] {
+  return loadAllManifests().map((m) => m.project)
 }
 
-export function searchManifest(query: string): ManifestSearchResult[] {
-  const manifest = loadManifest()
-  if (!manifest) return []
-
-  const annotations = loadAnnotations()
+/**
+ * Tüm alt projelerde (veya projectFilter verilirse tek alt projede) arama yapar.
+ * Her sonuç hangi alt projeden geldiği etiketiyle döner.
+ */
+export function searchManifest(query: string, projectFilter?: string): ManifestSearchResult[] {
+  const all = loadAllManifests()
   const keywords = query.toLowerCase().split(/[\s,]+/).filter(Boolean)
   const results: ManifestSearchResult[] = []
 
-  for (const [relFile, fileData] of Object.entries(manifest.files)) {
-    for (const func of fileData.functions) {
-      const annotation = annotations[relFile]?.[func.name]
+  for (const { project, manifest, annotations } of all) {
+    if (projectFilter && project !== projectFilter) continue
 
-      const nameText    = func.name.toLowerCase()
-      const domainText  = annotation?.domain?.toLowerCase() ?? ""
-      const whyText     = annotation?.why?.toLowerCase() ?? ""
-      const paramsText  = func.params.join(" ").toLowerCase()
-      const returnsText = func.returns.toLowerCase()
-      const fullText    = `${nameText} ${domainText} ${whyText} ${paramsText} ${returnsText}`
+    for (const [relFile, fileData] of Object.entries(manifest.files)) {
+      for (const func of fileData.functions) {
+        const annotation = annotations[relFile]?.[func.name]
 
-      const matched = keywords.some((kw) => fullText.includes(kw))
-      if (!matched) continue
+        const nameText    = func.name.toLowerCase()
+        const classText   = (func.class ?? "").toLowerCase()
+        const attrText    = (func.attributes ?? []).join(" ").toLowerCase()
+        const domainText  = annotation?.domain?.toLowerCase() ?? ""
+        const whyText     = annotation?.why?.toLowerCase() ?? ""
+        const paramsText  = func.params.join(" ").toLowerCase()
+        const returnsText = func.returns.toLowerCase()
+        const fullText =
+          `${nameText} ${classText} ${attrText} ${domainText} ${whyText} ${paramsText} ${returnsText}`
 
-      let matchType: "name" | "domain" | "keyword" = "keyword"
-      if (keywords.some((kw) => nameText.includes(kw))) {
-        matchType = "name"
-      } else if (domainText && keywords.some((kw) => domainText.includes(kw))) {
-        matchType = "domain"
+        if (!keywords.some((kw) => fullText.includes(kw))) continue
+
+        let matchType: "name" | "domain" | "keyword" = "keyword"
+        if (keywords.some((kw) => nameText.includes(kw) || classText.includes(kw))) {
+          matchType = "name"
+        } else if (domainText && keywords.some((kw) => domainText.includes(kw))) {
+          matchType = "domain"
+        }
+
+        results.push({
+          project,
+          file: relFile,
+          absPath: path.join(manifest.root, relFile.replace(/\//g, path.sep)),
+          function: func,
+          annotation,
+          matchType,
+        })
       }
-
-      results.push({ file: relFile, function: func, annotation, matchType })
     }
   }
 
@@ -98,12 +143,24 @@ export function searchManifest(query: string): ManifestSearchResult[] {
     return order[a.matchType] - order[b.matchType]
   })
 
-  return results.slice(0, 20)
+  return results.slice(0, 25)
 }
 
+/** Tüm alt projelerin annotation'larını birleştirir. */
+export function loadAnnotations(): AnnotationMap {
+  const merged: AnnotationMap = {}
+  for (const { annotations } of loadAllManifests()) {
+    Object.assign(merged, annotations)
+  }
+  return merged
+}
+
+/** Herhangi bir alt proje manifest'i 24 saatten eskiyse stale sayılır. */
 export function isManifestStale(): boolean {
-  const manifest = loadManifest()
-  if (!manifest) return true
-  const ageMs = Date.now() - new Date(manifest.generated).getTime()
-  return ageMs > 24 * 60 * 60 * 1000
+  const all = loadAllManifests()
+  if (all.length === 0) return true
+  return all.some(({ manifest }) => {
+    const ageMs = Date.now() - new Date(manifest.generated).getTime()
+    return ageMs > 24 * 60 * 60 * 1000
+  })
 }

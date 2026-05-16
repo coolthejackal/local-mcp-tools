@@ -3,15 +3,15 @@ import { CONFIG } from "../core/config"
 
 let program: ts.Program | null = null
 
-export function initTS() {
+export function initTS(root: string = CONFIG.ROOT_DIR) {
   const configPath = ts.findConfigFile(
-    CONFIG.ROOT_DIR,
+    root,
     ts.sys.fileExists,
     "tsconfig.json"
   )
 
   if (!configPath) {
-    throw new Error("tsconfig.json not found")
+    throw new Error(`tsconfig.json not found: ${root}`)
   }
 
   const configFile = ts.readConfigFile(configPath, ts.sys.readFile)
@@ -23,7 +23,7 @@ export function initTS() {
   const parsed = ts.parseJsonConfigFileContent(
     configFile.config,
     ts.sys,
-    CONFIG.ROOT_DIR
+    root
   )
 
   program = ts.createProgram(parsed.fileNames, parsed.options)

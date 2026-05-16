@@ -2,19 +2,21 @@ import ts from "typescript"
 import fs from "fs"
 import path from "path"
 import { getProgram, getTypeChecker } from "../ts/tsIncremental"
-import { CONFIG } from "./config"
 
 export type ManifestFunction = {
   name: string
-  params: string[]    // "paramName: Type" formatında
+  params: string[]        // "paramName: Type" formatında
   returns: string
-  calls: string[]     // çağrılan fonksiyon isimleri
+  calls: string[]         // çağrılan fonksiyon isimleri
+  class?: string          // C# — kapsayan sınıf
+  attributes?: string[]   // C# — method/decorator attribute'ları
 }
 
 export type ManifestFile = {
   functions: ManifestFunction[]
   exports: string[]
   dependencies: string[]  // proje içi import yolları
+  kind?: string           // C# — controller/service/entity...
 }
 
 export type ManifestIndex = {
@@ -23,10 +25,9 @@ export type ManifestIndex = {
   files: Record<string, ManifestFile>
 }
 
-export function buildManifest(): ManifestIndex {
+export function buildManifest(root: string): ManifestIndex {
   const program = getProgram()
   const checker = getTypeChecker()
-  const root = CONFIG.ROOT_DIR
 
   const manifest: ManifestIndex = {
     generated: new Date().toISOString(),
@@ -89,8 +90,8 @@ export function buildManifest(): ManifestIndex {
   return manifest
 }
 
-export function writeManifest(manifest: ManifestIndex): void {
-  const outPath = path.join(CONFIG.ROOT_DIR, "mcp-index.json")
+export function writeManifest(manifest: ManifestIndex, outPath: string): void {
+  fs.mkdirSync(path.dirname(outPath), { recursive: true })
   fs.writeFileSync(outPath, JSON.stringify(manifest, null, 2), "utf-8")
 }
 

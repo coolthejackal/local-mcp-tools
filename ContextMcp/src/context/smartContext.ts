@@ -5,21 +5,18 @@ import { traverseGraph } from "../graph/graphTraversal"
 import { getGraph } from "../core/indexer"
 import { CONFIG } from "../core/config"
 import { searchManifest, isManifestStale } from "../core/manifestReader"
-import path from "path"
 
 export function buildSmartContext(query: string) {
   const intent = analyzeIntent(query)
 
-  // ── 1. Manifest'e önce bak (O(1) lookup) ─────────────────────────────────
+  // ── 1. Manifest'e önce bak — eşleşen dosyaların mutlak yolları ────────────
   const manifestHits = searchManifest(query)
-  const manifestFiles = new Set(
-    manifestHits.map((r) => path.join(CONFIG.ROOT_DIR, r.file.replace(/\//g, path.sep)))
-  )
+  const manifestFiles = new Set(manifestHits.map((r) => r.absPath))
 
-  // ── 2. Mevcut TF-IDF + graph pipeline ────────────────────────────────────
+  // ── 2. TF-IDF + graph pipeline ───────────────────────────────────────────
   const seeds = findSeeds(intent.keywords, CONFIG.CONTEXT_TOP_K)
 
-  // Manifest'ten gelen dosyaları seed'lere ekle (yoksa)
+  // Manifest'ten gelen dosyaları seed'lere öne ekle
   for (const mf of manifestFiles) {
     if (!seeds.includes(mf)) seeds.unshift(mf)
   }
@@ -34,9 +31,9 @@ export function buildSmartContext(query: string) {
 
   const ranked = rankContext(expanded, query, CONFIG.CONTEXT_TOP_K)
 
-  // ── 3. Manifest eski ise meta bilgiye uyarı ekle ─────────────────────────
+  // ── 3. Manifest eski/yok ise uyar ────────────────────────────────────────
   const staleWarning = isManifestStale()
-    ? [{ file: "__warning__", score: 0, note: "mcp-index.json eski — build_context yeniden çalıştırın" }]
+    ? [{ file: "__warning__", score: 0, note: "manifest eski/yok — build_context çalıştırın" }]
     : []
 
   return [...staleWarning, ...ranked]

@@ -13,7 +13,7 @@ import { buildSmartContext } from "./context/smartContext"
 import { buildFinalContext } from "./optimize/smartContextFinal"
 import { buildFunctionContext } from "./function/functionContext"
 import { findBug } from "./debug/smartBugFinder"
-import { searchManifest, loadAnnotations, isManifestStale } from "./core/manifestReader"
+import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
 import { CONFIG } from "./core/config"
 
 // ─── Minimal tip tanımları ────────────────────────────────────────────────────
@@ -45,8 +45,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "build_context",
       description:
-        "Proje dosyalarını tarar ve RAM'e indeksler. " +
+        "Proje dosyalarını tarar, indeksler ve manifest üretir. " +
         `Kök dizin: ${CONFIG.ROOT_DIR}. ` +
+        "Monorepo'da alt projeleri (TypeScript / .NET) keşfeder, her birine " +
+        "docs/monorepo/<alt-proje>/mcp-index.json üretir. " +
         "Oturum başında bir kez, dosyalar değiştikten sonra tekrar çağrılmalı.",
       inputSchema: { type: "object", properties: {} },
     },
@@ -114,17 +116,22 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "read_manifest",
       description:
-        "mcp-index.json manifest dosyasında hızlı arama yapar. " +
-        "Fonksiyon imzaları (parametre tipleri, return tipi), çağrı zinciri ve " +
-        "mcp-annotations.json'dan 'neden/domain/risk' notlarını döner. " +
-        "build_context gerektirmez — manifest varsa her zaman kullanılabilir. " +
-        "Dosya aramadan önce bu araçla önce imza bilgisi al.",
+        "Manifest dosyalarında (docs/monorepo/<alt-proje>/mcp-index.json) hızlı arama yapar. " +
+        "TypeScript ve C# (.NET) projelerini destekler. Fonksiyon/method imzaları, " +
+        "parametre tipleri, return tipi, C# attribute'ları ([HttpGet], [Authorize]), " +
+        "çağrı zinciri ve mcp-annotations.json'dan 'neden/domain/risk' notlarını döner. " +
+        "Her sonuç hangi alt projeden geldiği (project) etiketiyle gelir. " +
+        "build_context gerektirmez. Dosya aramadan önce bu araçla imza bilgisi al.",
       inputSchema: {
         type: "object",
         properties: {
           query: {
             type: "string",
-            description: "Fonksiyon adı, domain veya anahtar kelime (örn: 'applyDiscount', 'pricing', 'hesapla')",
+            description: "Fonksiyon/sınıf adı, attribute, domain veya anahtar kelime (örn: 'GetOrder', 'Authorize', 'pricing')",
+          },
+          project: {
+            type: "string",
+            description: "Opsiyonel — yalnız bu alt projede ara (örn: 'frontend', 'backend')",
           },
         },
         required: ["query"],
@@ -148,10 +155,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "build_context": {
         buildContext()
         const fileCount = Object.keys(getContext()).length
+        const projects = listProjects()
         return {
           content: [{
             type: "text",
-            text: `İndeksleme tamamlandı.\nKök dizin: ${CONFIG.ROOT_DIR}\nToplam dosya: ${fileCount}`,
+            text:
+              `İndeksleme tamamlandı.\nKök dizin: ${CONFIG.ROOT_DIR}\n` +
+              `Taranan dosya: ${fileCount}\n` +
+              `Manifest üretilen alt projeler: ${projects.length ? projects.join(", ") : "(yok)"}`,
           }],
         }
       }
@@ -169,13 +180,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
         return { content: [{ type: "text", text: JSON.stringify(findBug(query()), null, 2) }] }
 
       case "read_manifest": {
-        const hits = searchManifest(query())
-        const stale = isManifestStale()
-        const annotations = loadAnnotations()
+        const proj = (args as { project?: string } | undefined)?.project
         const result = {
-          stale,
-          annotationFile: Object.keys(annotations).length > 0 ? "mcp-annotations.json yüklendi" : "mcp-annotations.json yok",
-          results: hits,
+          stale: isManifestStale(),
+          projects: listProjects(),
+          filter: proj ?? null,
+          annotations: Object.keys(loadAnnotations()).length > 0 ? "yüklü" : "yok",
+          results: searchManifest(query(), proj),
         }
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
