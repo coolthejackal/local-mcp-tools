@@ -13,6 +13,8 @@ import { buildSmartContext } from "./context/smartContext"
 import { buildFinalContext } from "./optimize/smartContextFinal"
 import { buildFunctionContext } from "./function/functionContext"
 import { findBug } from "./debug/smartBugFinder"
+import { reviewCode } from "./review/reviewEngine"
+import type { Category, Severity } from "./review/severity"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
 import { CONFIG } from "./core/config"
 
@@ -114,6 +116,39 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "review_code",
+      description:
+        "Sorguyla ilgili kaynak dosyaları enterprise-grade code review'dan geçirir. " +
+        "Security, Architecture, Performance, ErrorHandling kategorilerinde " +
+        "severity seviyelendirilmiş (Critical/High/Medium/Low/Suggestion) bulgular üretir. " +
+        "TS/JS: Node tarafında TS Compiler API ile semantic analiz. " +
+        "C#: ContextMcp.Roslyn subprocess'i CSharpCompilation + SemanticModel ile çalıştırır. " +
+        "Önce build_context çağrılmış olmalı.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Review kapsamı (örn: 'ödeme işlemi', 'authentication', 'kullanıcı kaydı')",
+          },
+          categories: {
+            type: "array",
+            items: {
+              type: "string",
+              enum: ["Security", "Architecture", "Performance", "ErrorHandling"],
+            },
+            description: "Opsiyonel — yalnız bu kategorilerde tara. Varsayılan: hepsi.",
+          },
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Opsiyonel — bu seviyenin altındaki bulguları gizler. Varsayılan: Low.",
+          },
+        },
+        required: ["query"],
+      },
+    },
+    {
       name: "read_manifest",
       description:
         "Manifest dosyalarında (docs/monorepo/<alt-proje>/mcp-index.json) hızlı arama yapar. " +
@@ -178,6 +213,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
 
       case "find_bugs":
         return { content: [{ type: "text", text: JSON.stringify(findBug(query()), null, 2) }] }
+
+      case "review_code": {
+        const opts = (args as { categories?: Category[]; minSeverity?: Severity } | undefined) ?? {}
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify(reviewCode(query(), opts), null, 2),
+          }],
+        }
+      }
 
       case "read_manifest": {
         const proj = (args as { project?: string } | undefined)?.project

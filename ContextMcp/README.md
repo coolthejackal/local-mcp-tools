@@ -120,6 +120,73 @@ Claude sırasıyla şunları yapar:
 | `final_context` | Token limitine sıkıştırılmış bağlam döner. Büyük projelerde tercih edin. |
 | `find_functions` | Sorguyla eşleşen fonksiyonları ve tam içeriklerini döner. |
 | `find_bugs` | İlgili kod bölgelerindeki olası hataları ve anti-pattern'leri tespit eder. |
+| `review_code` | Enterprise-grade code review — Security / Architecture / Performance / ErrorHandling. Severity seviyelendirilmiş bulgular. |
+| `read_manifest` | `mcp-index.json` içinde fonksiyon / sınıf / attribute araması. |
+
+---
+
+## `review_code` — Enterprise Code Review
+
+Sorguyla ilgili dosyaları "Senior Code Reviewer" perspektifiyle inceler ve **severity seviyelendirilmiş** bulgular döner.
+
+- **TS/JS** dosyaları: Node tarafında TypeScript Compiler API (semantic analiz) ile 20 kural.
+- **C#** dosyaları: `ContextMcp.Roslyn` subprocess'i `CSharpCompilation` + `SemanticModel` ile 18 kural.
+- .NET SDK yoksa: yalnız TS bulguları döner, C# kısmı atlanır (kısmi başarı).
+
+### Kategoriler
+
+| Kategori | Örnek kurallar |
+|----------|----------------|
+| `Security` | hardcoded-secret, sql-injection, xss-sink, weak-crypto, unsafe-eval, missing-authorize (C#) |
+| `Architecture` | god-class, long-function/method, too-many-params, deep-nesting, public-mutable-state, static-mutable-state (C#) |
+| `Performance` | await-in-loop, sync-fs-in-async, string-concat-in-loop, async-void (C#), blocking-wait-in-async (C#), linq-in-loop (C#) |
+| `ErrorHandling` | empty-catch, swallowed-catch, promise-no-catch, async-without-try, missing-dispose (C#), async-without-cancellation (C#) |
+
+### Parametreler
+
+| Parametre | Tip | Zorunlu | Açıklama |
+|-----------|-----|---------|----------|
+| `query` | `string` | evet | Review kapsamı (örn: `"ödeme işlemi"`, `"authentication"`) |
+| `categories` | `string[]` | hayır | Yalnız listelenen kategorilerde tara. Varsayılan: hepsi. |
+| `minSeverity` | `string` | hayır | Bu seviyenin altındaki bulguları gizle. Varsayılan: `"Low"`. Geçerli: `Critical` / `High` / `Medium` / `Low` / `Suggestion`. |
+
+### Örnek çağrı
+
+```json
+{
+  "name": "review_code",
+  "arguments": {
+    "query": "kullanıcı doğrulama",
+    "categories": ["Security", "ErrorHandling"],
+    "minSeverity": "Medium"
+  }
+}
+```
+
+### Örnek çıktı
+
+```json
+{
+  "query": "kullanıcı doğrulama",
+  "filesReviewed": 8,
+  "summary": { "critical": 1, "high": 3, "medium": 5, "low": 0, "suggestion": 0 },
+  "byCategory": { "Security": 2, "Architecture": 0, "Performance": 3, "ErrorHandling": 4 },
+  "findings": [
+    {
+      "severity": "Critical",
+      "category": "Security",
+      "file": "C:/Projects/MyApp/src/auth/login.ts",
+      "line": 42,
+      "rule": "sql-injection",
+      "message": "Template literal SQL anahtar kelimesi içeriyor ve interpolasyon yapıyor.",
+      "impact": "Kullanıcı girdisinin SQL'e birleştirilmesi injection açar; yetkisiz veri okuma...",
+      "recommendation": "Parametrik sorgu kullan: pg/mysql2 `?`/`$1` placeholder'ları..."
+    }
+  ]
+}
+```
+
+Önce `build_context` çağrılmış olmalı. `find_bugs` araç olarak korunur — hızlı/basit pattern tarama için; `review_code` ise yapılandırılmış, kategori bazlı ve impact/recommendation içeren derinlemesine inceleme.
 
 ---
 
@@ -139,6 +206,7 @@ npm run dev   # http://localhost:4000
 | `POST /context/functions` | `{ "query": "..." }` | Eşleşen fonksiyonlar |
 | `POST /context/deep` | `{ "entry": "fonksiyon_adı" }` | Veri akışı zinciri |
 | `POST /context/debug` | `{ "query": "..." }` | Olası hatalar |
+| `POST /context/review` | `{ "query": "...", "categories": [...], "minSeverity": "..." }` | Enterprise code review |
 
 ---
 
@@ -147,7 +215,7 @@ npm run dev   # http://localhost:4000
 - Tarama yalnızca `CTX_ROOT` altında kalır — dışarı çıkamaz.
 - Sembolik link ile izolasyon atlatma engellenir.
 - `MCPTools` klasörü kendisi tarama dışında tutulur.
-- Taranan dosya türleri: `.ts` `.tsx` `.js` `.jsx`
+- Taranan dosya türleri: `.ts` `.tsx` `.js` `.jsx` `.cs`
 - Otomatik maskelenen değerler: API key, password, secret, token, DB URL, PEM anahtarları, JWT.
 
 ---

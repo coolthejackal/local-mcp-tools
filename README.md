@@ -13,12 +13,15 @@ böylece Claude tüm dosyaları tek tek okumadan önce projeyi anlar.
 Büyük bir projede Claude'un her dosyayı okuması yavaş ve pahalıdır. ContextMCP projeyi
 önceden tarayıp fonksiyon/method imzalarını, tiplerini ve çağrı zincirlerini bir
 `mcp-index.json` dosyasına yazar. Claude önce buraya bakar, hangi dosyalara
-odaklanacağını bilir.
+odaklanacağını bilir. Ayrıca **enterprise-grade code review** üretir — Security,
+Architecture, Performance, ErrorHandling kategorilerinde severity seviyelendirilmiş
+bulgular.
 
 - **Proje izolasyonu** — yalnız belirlenen kök dizin (`CTX_ROOT`) taranır, dışına çıkılmaz
 - **Gizli bilgi maskeleme** — API key, token, şifre, bağlantı dizgisi otomatik gizlenir
 - **Çok dilli** — TypeScript/JavaScript ve C#/.NET
 - **Monorepo** — frontend ve backend ayrı ayrı, karışmadan
+- **Code review** — `review_code` aracı: TS Compiler API + Roslyn semantic model ile statik kural motoru
 
 ---
 
@@ -26,11 +29,11 @@ odaklanacağını bilir.
 
 | Bileşen | Teknoloji | Rol |
 |---------|-----------|-----|
-| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; TS/JS analizini kendi yapar |
-| [ContextMcp.Roslyn/](ContextMcp.Roslyn/) | .NET 9 / Roslyn | C# analiz bileşeni — ContextMcp tarafından çağrılır |
+| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; TS/JS analizini ve TS/JS code review'u kendi yapar |
+| [ContextMcp.Roslyn/](ContextMcp.Roslyn/) | .NET 9 / Roslyn | C# analiz + review bileşeni — ContextMcp tarafından çağrılır (`manifest` / `review` subkomutları) |
 
 Yalnız **ContextMcp** bir MCP sunucusudur. **ContextMcp.Roslyn** protokol konuşmaz;
-ContextMcp'nin C# kodu analiz etmek için çağırdığı bir yardımcıdır.
+ContextMcp'nin C# kodu analiz/review etmek için çağırdığı bir yardımcıdır.
 
 ---
 
@@ -42,12 +45,22 @@ Claude Code
     ▼
 ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     │
-    ├─ TypeScript / JS  →  TS Compiler API   (dahili)
-    └─ C#               →  ContextMcp.Roslyn (subprocess, .NET 9)
-                                 │
-    ┌────────────────────────────┘
-    ▼
-<proje>/docs/monorepo/<alt-proje>/mcp-index.json
+    ├─ build_context / smart_context / find_bugs / ...
+    │       │
+    │       ├─ TypeScript / JS  →  TS Compiler API   (dahili)
+    │       └─ C#               →  ContextMcp.Roslyn manifest (subprocess)
+    │                                     │
+    │       ┌─────────────────────────────┘
+    │       ▼
+    │   <proje>/docs/monorepo/<alt-proje>/mcp-index.json
+    │
+    └─ review_code  →  Security / Architecture / Performance / ErrorHandling
+            │
+            ├─ TypeScript / JS  →  TS Compiler API semantic kuralları (dahili)
+            └─ C#               →  ContextMcp.Roslyn review (subprocess)
+                                       │  CSharpCompilation + SemanticModel
+                                       ▼
+                                   Finding[] (severity / category / impact / recommendation)
 ```
 
 ---
@@ -99,6 +112,28 @@ Monorepo'da her alt proje (backend, frontend …) kendi manifest'ini alır — k
 - Tarama `CTX_ROOT` dışına çıkamaz; sembolik link ile kaçış engellenir
 - Yalnız `.ts` `.tsx` `.js` `.jsx` `.cs` dosyaları okunur
 - API key, token, şifre, DB bağlantı dizgisi, PEM anahtarı, JWT otomatik maskelenir
+- `review_code` aracı **statik analiz** yapar — hiçbir kod çalıştırılmaz, ağa bağlanılmaz
+
+---
+
+## Kullanım Akışı (Claude Code ile)
+
+```text
+Claude → build_context           (ilk oturumda bir kez)
+       → smart_context "ödeme"   (kavramla ilgili dosyaları bulur)
+       → review_code "ödeme"     (aynı kapsamı code review'dan geçirir)
+```
+
+`review_code` parametreleri:
+
+| Parametre | Açıklama | Örnek |
+|-----------|----------|-------|
+| `query` | Review kapsamı (zorunlu) | `"kullanıcı kaydı"` |
+| `categories` | Yalnız bu kategoriler | `["Security", "ErrorHandling"]` |
+| `minSeverity` | Bu seviyenin altı gizlenir | `"High"` |
+
+Detaylar: [ContextMcp/README.md](ContextMcp/README.md#review_code--enterprise-code-review) ·
+[ContextMcp.Roslyn/README.md](ContextMcp.Roslyn/README.md#review-subkomutu)
 
 ---
 

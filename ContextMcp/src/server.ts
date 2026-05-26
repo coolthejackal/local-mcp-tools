@@ -7,6 +7,7 @@ import { buildFinalContext } from "./optimize/smartContextFinal"
 import { buildFunctionContext } from "./function/functionContext"
 import { buildDataFlowChain } from "./dataflow/dataFlowChain"
 import { findBug } from "./debug/smartBugFinder"
+import { reviewCode } from "./review/reviewEngine"
 
 import { loadPlugins } from "./plugins"
 import { runOnQuery, registerAllTools } from "./plugins/pluginManager"
@@ -47,6 +48,11 @@ app.post("/context/deep", (req, res) => {
 
 app.post("/context/debug", (req, res) => {
   res.json({ result: findBug(req.body.query) })
+})
+
+app.post("/context/review", (req, res) => {
+  const { query, categories, minSeverity } = req.body ?? {}
+  res.json({ result: reviewCode(query, { categories, minSeverity }) })
 })
 
 app.post("/context/plugins", (req, res) => {
