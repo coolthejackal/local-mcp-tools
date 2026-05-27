@@ -5,6 +5,7 @@ using ContextMcp.Roslyn.Review;
 using ContextMcp.Roslyn.Audit.ApiContract;
 using ContextMcp.Roslyn.Audit.TenantIsolation;
 using ContextMcp.Roslyn.Audit.ArchGraph;
+using ContextMcp.Roslyn.Audit.DomainEvents;
 
 // Argümanlar:
 //   ContextMcp.Roslyn manifest <kaynakKök> <çıktıDosyası>
@@ -25,7 +26,7 @@ if (args.Length < 2)
 
 string subcommand;
 string[] rest;
-if (args[0] is "manifest" or "review" or "api-contract" or "tenant-isolation" or "arch-graph")
+if (args[0] is "manifest" or "review" or "api-contract" or "tenant-isolation" or "arch-graph" or "domain-events")
 {
     subcommand = args[0];
     rest = args.Skip(1).ToArray();
@@ -44,6 +45,7 @@ return subcommand switch
     "api-contract" => RunApiContract(rest),
     "tenant-isolation" => RunTenantIsolation(rest),
     "arch-graph" => RunArchGraph(rest),
+    "domain-events" => RunDomainEvents(rest),
     _ => Fail($"Bilinmeyen subkomut: {subcommand}"),
 };
 
@@ -184,5 +186,22 @@ static int RunArchGraph(string[] a)
     Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
     File.WriteAllText(outputFile, json);
     Console.Error.WriteLine($"[ContextMcp.Roslyn] arch-graph: {result.Projects.Count} proje → {outputFile}");
+    return 0;
+}
+
+static int RunDomainEvents(string[] a)
+{
+    if (a.Length < 2) return Fail("domain-events: <kaynakKök> <çıktıDosyası> gerekli.");
+    var sourceRoot = Path.GetFullPath(a[0]);
+    var outputFile = Path.GetFullPath(a[1]);
+    if (!Directory.Exists(sourceRoot)) return Fail($"Kaynak dizin bulunamadı: {sourceRoot}");
+
+    var result = DomainEventsRunner.Run(sourceRoot);
+    var json = JsonSerializer.Serialize(
+        result,
+        new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+    File.WriteAllText(outputFile, json);
+    Console.Error.WriteLine($"[ContextMcp.Roslyn] domain-events: {result.Publishers.Count} publisher, {result.Consumers.Count} consumer → {outputFile}");
     return 0;
 }

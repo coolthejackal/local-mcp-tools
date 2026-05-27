@@ -20,6 +20,9 @@ import { runFrontendCompliance } from "./audit/apaas/frontendCompliance/runner"
 import { runTenantIsolationAudit } from "./audit/apaas/tenantIsolation/runner"
 import { runArchAudit } from "./audit/roles/archAudit/runner"
 import { runQaAudit } from "./audit/roles/qaAudit/runner"
+import { runDevOpsAudit } from "./audit/roles/devopsAudit/runner"
+import { runPmStatus } from "./audit/roles/pmStatus/runner"
+import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
 import { CONFIG } from "./core/config"
 
@@ -268,6 +271,55 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "devops_audit",
+      description:
+        "DevOps perspektifi: Dockerfile (multi-stage, non-root USER), docker-compose " +
+        "(healthcheck, secret leak), .env (gerçek sırlar), .github/workflows (secret " +
+        "leak, cache eksikliği, self-hosted runner) kontrolleri.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
+      name: "pm_status",
+      description:
+        "Project Manager raporu: son N gün commit aktivitesi (kim/ne kadar), " +
+        "dead branch'ler, WIP commit envanteri, TODO/FIXME haritası (@owner parse). " +
+        "Finding üretmez — yapılandırılmış status raporu döner.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sinceDays: { type: "number", description: "Commit aktivitesi penceresi (varsayılan: 30 gün)." },
+          deadBranchDays: { type: "number", description: "Bu kadar gün dokunulmamış branch dead sayılır (varsayılan: 30)." },
+        },
+      },
+    },
+    {
+      name: "domain_events_map",
+      description:
+        "Domain event publisher/consumer haritası. " +
+        "IEventBus.PublishAsync<T>, IEventHandler<T>, INotificationHandler<T>, IConsumer<T> " +
+        "pattern'lerini Roslyn semantic model ile keşfeder. orphan-event, unimplemented-consumer, " +
+        "high-fanout-event kuralları.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
       name: "read_manifest",
       description:
         "Manifest dosyalarında (docs/monorepo/<alt-proje>/mcp-index.json) hızlı arama yapar. " +
@@ -387,6 +439,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
           excessiveMocksThreshold?: number
         } | undefined) ?? {}
         const result = await runQaAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "devops_audit": {
+        const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
+        const result = await runDevOpsAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "pm_status": {
+        const opts = (args as { sinceDays?: number; deadBranchDays?: number } | undefined) ?? {}
+        const result = runPmStatus(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "domain_events_map": {
+        const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
+        const result = await runDomainEventsMap(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 
