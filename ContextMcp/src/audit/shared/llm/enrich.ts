@@ -32,15 +32,13 @@ async function loadProvider(): Promise<LlmProvider | null> {
   const cfg = getLlmConfig()
   if (!cfg.enabled) return null
 
-  // Faz 1 ile birlikte gelecek: AnthropicProvider lazy import.
-  // Faz 0 iskeletinde provider yok — uyarı verip null dön.
   try {
-    // Yer tutucu: ./anthropicProvider gibi bir dosya Faz 1'de eklenecek.
-    // Şimdilik provider yüklenemiyor → static analiz yine de döner.
-    process.stderr.write(
-      "[llm-enrich] LLM_ENABLED=true ama provider implementasyonu henüz mevcut değil " +
-      "(Faz 1'de AnthropicProvider eklenecek).\n"
-    )
+    if (cfg.provider === "anthropic") {
+      // Lazy require — @anthropic-ai/sdk optionalDependencies içinde.
+      const mod = await import("./anthropicProvider")
+      return new mod.AnthropicProvider(cfg.apiKey)
+    }
+    process.stderr.write(`[llm-enrich] desteklenmeyen provider: ${cfg.provider}\n`)
     return null
   } catch (err) {
     process.stderr.write(`[llm-enrich] provider yüklenemedi: ${(err as Error).message}\n`)

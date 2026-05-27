@@ -2,10 +2,12 @@ using System.Text.Json;
 using Microsoft.CodeAnalysis.CSharp;
 using ContextMcp.Roslyn;
 using ContextMcp.Roslyn.Review;
+using ContextMcp.Roslyn.Audit.ApiContract;
 
 // Argümanlar:
 //   ContextMcp.Roslyn manifest <kaynakKök> <çıktıDosyası>
 //   ContextMcp.Roslyn review <dosyaListesi> <çıktıDosyası> [--categories=Security,Architecture,...]
+//   ContextMcp.Roslyn api-contract <kaynakKök> <çıktıDosyası>
 //
 // Geriye uyumluluk: ilk argüman bir subkomut adı değilse ESKİ davranış (manifest) çalışır.
 
@@ -14,13 +16,14 @@ if (args.Length < 2)
     Console.Error.WriteLine(
         "Kullanım:\n" +
         "  ContextMcp.Roslyn manifest <kaynakKök> <çıktıDosyası>\n" +
-        "  ContextMcp.Roslyn review <dosyaListesi> <çıktıDosyası> [--categories=Security,Architecture,Performance,ErrorHandling]");
+        "  ContextMcp.Roslyn review <dosyaListesi> <çıktıDosyası> [--categories=Security,Architecture,Performance,ErrorHandling]\n" +
+        "  ContextMcp.Roslyn api-contract <kaynakKök> <çıktıDosyası>");
     return 1;
 }
 
 string subcommand;
 string[] rest;
-if (args[0] is "manifest" or "review")
+if (args[0] is "manifest" or "review" or "api-contract")
 {
     subcommand = args[0];
     rest = args.Skip(1).ToArray();
@@ -36,6 +39,7 @@ return subcommand switch
 {
     "manifest" => RunManifest(rest),
     "review" => RunReview(rest),
+    "api-contract" => RunApiContract(rest),
     _ => Fail($"Bilinmeyen subkomut: {subcommand}"),
 };
 
@@ -117,5 +121,30 @@ static int RunReview(string[] a)
     Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
     File.WriteAllText(outputFile, json);
     Console.Error.WriteLine($"[ContextMcp.Roslyn] review: {paths.Length} dosya, {findings.Count} bulgu → {outputFile}");
+    return 0;
+}
+
+static int RunApiContract(string[] a)
+{
+    if (a.Length < 2) return Fail("api-contract: <kaynakKök> <çıktıDosyası> gerekli.");
+    var sourceRoot = Path.GetFullPath(a[0]);
+    var outputFile = Path.GetFullPath(a[1]);
+
+    if (!Directory.Exists(sourceRoot))
+        return Fail($"Kaynak dizin bulunamadı: {sourceRoot}");
+
+    var endpoints = ApiContractRunner.Run(sourceRoot);
+
+    var json = JsonSerializer.Serialize(
+        endpoints,
+        new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        });
+
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+    File.WriteAllText(outputFile, json);
+    Console.Error.WriteLine($"[ContextMcp.Roslyn] api-contract: {endpoints.Count} endpoint → {outputFile}");
     return 0;
 }

@@ -15,6 +15,8 @@ import { buildFunctionContext } from "./function/functionContext"
 import { findBug } from "./debug/smartBugFinder"
 import { reviewCode } from "./review/reviewEngine"
 import type { Category, Severity } from "./review/severity"
+import { runApiContractAudit } from "./audit/apaas/apiContractAudit/runner"
+import { runFrontendCompliance } from "./audit/apaas/frontendCompliance/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
 import { CONFIG } from "./core/config"
 
@@ -149,6 +151,61 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "api_contract_audit",
+      description:
+        "API endpoint envanteri çıkarır (MVC + Minimal API + MapGroup) ve opsiyonel olarak " +
+        "Postman collection'ı ile drift kontrolü yapar. Auth kapsamı, missing-cancellation-token, " +
+        "endpoint-no-auth, endpoint-missing-in-postman, endpoint-orphan-in-postman, " +
+        "endpoint-route-mismatch gibi kurallar uygular. ContextMcp.Roslyn subprocess'i çağırır.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          compareWithPostman: {
+            type: "boolean",
+            description: "Postman koleksiyonu ile drift kontrolü yap (varsayılan: true).",
+          },
+          postmanPath: {
+            type: "string",
+            description: "CTX_ROOT içinde Postman dosyası yolu. Belirtilmezse docs/postman/*.postman_collection.json otomatik aranır.",
+          },
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Bu seviyenin altındaki bulgular gizlenir. Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
+      name: "frontend_compliance",
+      description:
+        "Frontend (Next.js/React/TSX) konvansiyon ihlallerini tarar: " +
+        "direct-axios-call (interceptor bypass), native-html-form-element (DX wrapper bypass), " +
+        "manual-toast-on-intercepted-status (5xx/401/429 çift bildirim), missing-loading-state. " +
+        "İstisna yorumu: // @frontend-compliance-allow: <rule-name> — <gerekçe>. " +
+        "Query-driven — smart_context ile ilgili dosyaları bulur.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Review kapsamı (örn: 'login sayfası', 'kullanıcı kaydı')",
+          },
+          categories: {
+            type: "array",
+            items: { type: "string", enum: ["interceptor", "dx-wrapper", "error-handling"] },
+            description: "Yalnız bu kategorilerde tara. Varsayılan: hepsi.",
+          },
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+        required: ["query"],
+      },
+    },
+    {
       name: "read_manifest",
       description:
         "Manifest dosyalarında (docs/monorepo/<alt-proje>/mcp-index.json) hızlı arama yapar. " +
@@ -222,6 +279,29 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
             text: JSON.stringify(reviewCode(query(), opts), null, 2),
           }],
         }
+      }
+
+      case "api_contract_audit": {
+        const opts = (args as {
+          compareWithPostman?: boolean
+          postmanPath?: string
+          minSeverity?: Severity
+        } | undefined) ?? {}
+        const result = await runApiContractAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "frontend_compliance": {
+        const opts = (args as {
+          categories?: string[]
+          minSeverity?: Severity
+        } | undefined) ?? {}
+        const result = await runFrontendCompliance({
+          query: query(),
+          categories: opts.categories,
+          minSeverity: opts.minSeverity,
+        })
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 
       case "read_manifest": {
