@@ -95,9 +95,9 @@ function resolvePostmanPath(userPath: string | undefined): string | null {
   if (userPath) {
     candidates.push(path.isAbsolute(userPath) ? userPath : path.join(CONFIG.ROOT_DIR, userPath))
   }
-  // Defaultları dene
-  candidates.push(path.join(CONFIG.ROOT_DIR, "docs/postman/OneFlow.postman_collection.json"))
+  // Default: docs/postman/ klasöründe ilk *.postman_collection.json
   candidates.push(path.join(CONFIG.ROOT_DIR, "docs/postman"))
+  candidates.push(path.join(CONFIG.ROOT_DIR, "postman"))
 
   for (const c of candidates) {
     if (!fs.existsSync(c)) continue

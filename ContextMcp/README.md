@@ -206,7 +206,7 @@ Sorguyla ilgili dosyaları "Senior Code Reviewer" perspektifiyle inceler ve **se
 
 #### `api_contract_audit`
 
-API endpoint envanteri çıkarır ve Postman drift kontrolü yapar. **OneFlow gibi Minimal API ağırlıklı projelerde** doğrudan kullanılabilir.
+API endpoint envanteri çıkarır ve Postman drift kontrolü yapar. **Minimal API ağırlıklı ASP.NET Core projelerinde** doğrudan kullanılabilir.
 
 **Endpoint çıkarımı (Roslyn semantic model):**
 - Minimal API: `app.MapGet/Post/Put/Delete/Patch(route, handler)` zinciri + `MapGroup` prefix tracking
@@ -311,7 +311,7 @@ Finding üretmez — yapılandırılmış status raporu döner:
   "commitActivity": { "sinceDays": 30, "totalCommits": 42, "byAuthor": [...] },
   "deadBranches": [{ "name": "feature/old", "daysStale": 91, ... }],
   "workInProgressCommits": [...],
-  "todoInventory": { "total": 17, "byOwner": { "@caner": 5 }, "items": [...] }
+  "todoInventory": { "total": 17, "byOwner": { "@alice": 5 }, "items": [...] }
 }
 ```
 

@@ -129,7 +129,7 @@ export function detectPostmanDrift(
           `${ep.method} ${codeRoute} — kodda var, Postman koleksiyonunda yok.`,
           "Yeni endpoint Postman'e eklenmediği için ekip manuel test edemiyor, " +
           "release notes'ta görünmüyor, dış paydaşlara yansıtılamıyor.",
-          "Postman koleksiyonuna yeni item ekle (`docs/postman/OneFlow.postman_collection.json`)."
+          "Postman koleksiyonuna yeni item ekle (`docs/postman/*.postman_collection.json`)."
         ))
       }
     }

@@ -147,7 +147,7 @@ dotnet run --project ContextMcp.Roslyn -- arch-graph <kaynakKök> <çıktıDosya
 ```json
 {
   "projects": [
-    { "name": "OneFlow.Domain", "path": "...", "layer": "domain", "references": ["OneFlow.Common"] }
+    { "name": "MyApp.Domain", "path": "...", "layer": "domain", "references": ["MyApp.Common"] }
   ]
 }
 ```
@@ -162,8 +162,8 @@ Tüm `.cs` dosyalarını **tek bir CSharpCompilation** içinde toplar — cross-
 
 ```json
 {
-  "publishers": [{ "eventType": "OrderCreated", "file": "...", "line": 42, "project": "OneFlow.Identity.API" }],
-  "consumers":  [{ "eventType": "OrderCreated", "handlerClass": "OrderCreatedHandler", "file": "...", "line": 18, "project": "OneFlow.Notifications.API" }]
+  "publishers": [{ "eventType": "OrderCreated", "file": "...", "line": 42, "project": "MyApp.Orders.API" }],
+  "consumers":  [{ "eventType": "OrderCreated", "handlerClass": "OrderCreatedHandler", "file": "...", "line": 18, "project": "MyApp.Notifications.API" }]
 }
 ```
 

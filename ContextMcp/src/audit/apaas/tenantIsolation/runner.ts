@@ -1,14 +1,13 @@
-import { execFileSync } from "child_process"
 import fs from "fs"
 import os from "os"
 import path from "path"
 import { CONFIG } from "../../../core/config"
+import { runRoslyn } from "../../../core/roslynRunner"
 import type { Finding } from "../../shared/finding"
 import type { Severity } from "../../shared/severity"
 import { compareSeverityDesc, meetsMinSeverity } from "../../shared/severity"
 import { enrichFindings } from "../../shared/llm/enrich"
 
-const ROSLYN_PROJECT = path.resolve(__dirname, "../../../../../ContextMcp.Roslyn")
 const CATEGORY = "TenantIsolation"
 
 type EntityRecord = {
@@ -40,15 +39,9 @@ function runRoslynTenantIsolation(): TenantIsolationResult {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-tenant-"))
   const outputPath = path.join(tmpDir, "result.json")
   try {
-    try {
-      execFileSync(
-        "dotnet",
-        ["run", "--project", ROSLYN_PROJECT, "--", "tenant-isolation", CONFIG.ROOT_DIR, outputPath],
-        { stdio: ["ignore", "ignore", "inherit"] }
-      )
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException
-      process.stderr.write(`[tenant-isolation] Roslyn subprocess hata: ${e.message}\n`)
+    const result = runRoslyn("tenant-isolation", [CONFIG.ROOT_DIR, outputPath])
+    if (!result.ok) {
+      process.stderr.write(`[tenant-isolation] Roslyn çağrısı başarısız: ${result.reason}\n`)
       return { entities: [], ignoreCalls: [] }
     }
     if (!fs.existsSync(outputPath)) return { entities: [], ignoreCalls: [] }

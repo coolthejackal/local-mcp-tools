@@ -1,14 +1,13 @@
-import { execFileSync } from "child_process"
 import fs from "fs"
 import os from "os"
 import path from "path"
 import { CONFIG } from "../../../core/config"
+import { runRoslyn } from "../../../core/roslynRunner"
 import type { Finding } from "../../shared/finding"
 import type { Severity } from "../../shared/severity"
 import { compareSeverityDesc, meetsMinSeverity } from "../../shared/severity"
 import { enrichFindings } from "../../shared/llm/enrich"
 
-const ROSLYN_PROJECT = path.resolve(__dirname, "../../../../../ContextMcp.Roslyn")
 const CATEGORY = "Architecture"
 
 type ProjectNode = {
@@ -37,14 +36,9 @@ function runRoslynArchGraph(): ArchGraph {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-arch-"))
   const outputPath = path.join(tmpDir, "graph.json")
   try {
-    try {
-      execFileSync(
-        "dotnet",
-        ["run", "--project", ROSLYN_PROJECT, "--", "arch-graph", CONFIG.ROOT_DIR, outputPath],
-        { stdio: ["ignore", "ignore", "inherit"] }
-      )
-    } catch (err) {
-      process.stderr.write(`[arch-audit] Roslyn subprocess hata: ${(err as Error).message}\n`)
+    const result = runRoslyn("arch-graph", [CONFIG.ROOT_DIR, outputPath])
+    if (!result.ok) {
+      process.stderr.write(`[arch-audit] Roslyn çağrısı başarısız: ${result.reason}\n`)
       return { projects: [] }
     }
     if (!fs.existsSync(outputPath)) return { projects: [] }

@@ -46,10 +46,13 @@ function collectFiles(): { source: string[]; test: string[] } {
   const program = getProgram()
   const source: string[] = []
   const test: string[] = []
+  // Windows: TS Compiler API forward slash, CONFIG.ROOT_DIR backslash döner.
+  const root = CONFIG.ROOT_DIR.replace(/\\/g, "/").toLowerCase()
   for (const sf of program.getSourceFiles()) {
     if (sf.isDeclarationFile) continue
     const file = sf.fileName
-    if (!file.startsWith(CONFIG.ROOT_DIR)) continue
+    const norm = file.replace(/\\/g, "/").toLowerCase()
+    if (!norm.startsWith(root)) continue
     if (TEST_FILE_RE.test(file)) test.push(file)
     else source.push(file)
   }

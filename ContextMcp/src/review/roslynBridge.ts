@@ -1,11 +1,9 @@
-import { execFileSync } from "child_process"
 import fs from "fs"
 import os from "os"
 import path from "path"
+import { runRoslyn } from "../core/roslynRunner"
 import type { Finding } from "./finding"
 import type { Category } from "./severity"
-
-const ROSLYN_PROJECT = path.resolve(__dirname, "../../../ContextMcp.Roslyn")
 
 export function isCsFile(file: string): boolean {
   return file.toLowerCase().endsWith(".cs")
@@ -26,28 +24,12 @@ export function runRoslynReview(csFiles: string[], categories?: Category[]): Fin
   try {
     fs.writeFileSync(fileListPath, csFiles.join("\n"), "utf8")
 
-    const cliArgs = [
-      "run",
-      "--project",
-      ROSLYN_PROJECT,
-      "--",
-      "review",
-      fileListPath,
-      outputPath,
-    ]
-    if (categories?.length) {
-      cliArgs.push(`--categories=${categories.join(",")}`)
-    }
+    const args = [fileListPath, outputPath]
+    if (categories?.length) args.push(`--categories=${categories.join(",")}`)
 
-    try {
-      execFileSync("dotnet", cliArgs, { stdio: ["ignore", "ignore", "inherit"] })
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException
-      if (e.code === "ENOENT") {
-        process.stderr.write("[review] 'dotnet' CLI bulunamadı — C# review atlandı.\n")
-      } else {
-        process.stderr.write(`[review] Roslyn subprocess hata: ${e.message}\n`)
-      }
+    const result = runRoslyn("review", args)
+    if (!result.ok) {
+      process.stderr.write(`[review] Roslyn çağrısı başarısız: ${result.reason}\n`)
       return []
     }
 
