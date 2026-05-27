@@ -22,6 +22,7 @@ import { runArchAudit } from "./audit/roles/archAudit/runner"
 import { runQaAudit } from "./audit/roles/qaAudit/runner"
 import { runDevOpsAudit } from "./audit/roles/devopsAudit/runner"
 import { runSecurityAudit } from "./audit/roles/securityAudit/runner"
+import { runDocsAudit } from "./audit/roles/docsAudit/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -315,6 +316,42 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "docs_audit",
+      description:
+        "Documentation Writer perspektifi — README, CLAUDE.md, docs/ klasörü kalitesi. " +
+        "markdown link rot, CLAUDE.md kırık kod/path referansları, README/CLAUDE.md freshness, " +
+        "CHANGELOG senkronizasyonu, ADR kalite (status / supersede link / naming drift), " +
+        "stale active doc, runbook freshness, modül-bazlı context doc eksikliği, " +
+        "public API XML doc eksikliği. ADR ve CLAUDE.md varsa kalite, yoksa skip — " +
+        "proje tasarımına müdahale yok.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+          readmeStaleDays: {
+            type: "number",
+            description: "README stale eşik (varsayılan 180 gün).",
+          },
+          claudeMdStaleDays: {
+            type: "number",
+            description: "CLAUDE.md stale eşik (varsayılan 90 gün — daha sık güncellenmeli).",
+          },
+          activeDocStaleDays: {
+            type: "number",
+            description: "docs/active stale eşik (varsayılan 90 gün).",
+          },
+          runbookStaleDays: {
+            type: "number",
+            description: "docs/runbooks stale eşik (varsayılan 365 gün).",
+          },
+        },
+      },
+    },
+    {
       name: "pm_status",
       description:
         "Project Manager raporu: son N gün commit aktivitesi (kim/ne kadar), " +
@@ -478,6 +515,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "devops_audit": {
         const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
         const result = await runDevOpsAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "docs_audit": {
+        const opts = (args as {
+          minSeverity?: Severity
+          readmeStaleDays?: number
+          claudeMdStaleDays?: number
+          activeDocStaleDays?: number
+          runbookStaleDays?: number
+        } | undefined) ?? {}
+        const result = await runDocsAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 

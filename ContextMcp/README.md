@@ -129,6 +129,7 @@ Claude sırasıyla şunları yapar:
 | `qa_audit` | QA Engineer: prod fn ↔ test eşleştirmesi, empty-test, skipped-test, todo-in-test, excessive-mocks. |
 | `devops_audit` | DevOps: Dockerfile (multi-stage, non-root), docker-compose (healthcheck, secret), .env secrets, CI workflow. |
 | `security_audit` | Security Engineer: kod-AST dışı baseline — repo-wide config secrets, npm/dotnet CVE, HTTP headers, cookies, JWT/Identity config, license uyumu. |
+| `docs_audit` | Documentation Writer: README/CLAUDE.md/docs/ kalitesi — link rot, broken CLAUDE.md references, freshness, ADR kalite, modül context doc. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -281,6 +282,58 @@ Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'�
 > **Çağrı rolü farkı:**
 > - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
 > - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
+
+#### `docs_audit`
+
+Documentation Writer perspektifi. Yalnız README değil; **CLAUDE.md** (Claude Code talimat dosyaları), **`docs/**/*.md`**, **ADR'lar** ve **modül-bazlı context doc'ları** kapsar. Proje tasarımına müdahale yok — ADR veya CLAUDE.md yoksa ilgili kurallar skip edilir.
+
+**Genel markdown kalitesi:**
+
+| Rule | Severity | Tetik |
+|------|----------|-------|
+| `markdown-link-rot` | Medium | README/CLAUDE.md/docs içindeki relative markdown link'i kırık |
+| `readme-stale` | Low | README > N gün güncellenmemiş + o süreden beri 50+ commit (varsayılan 180 gün) |
+| `claude-md-stale` | Low | CLAUDE.md > N gün + 20+ commit (varsayılan 90 gün — daha sıkı çünkü "yaşayan talimat") |
+| `changelog-behind-git` | Medium | CHANGELOG.md var ama son tag'den beri Unreleased bölümü yok |
+
+**Cross-reference & modül-doc bütünlüğü:**
+
+| Rule | Severity | Tetik |
+|------|----------|-------|
+| `claude-md-broken-reference` | High | CLAUDE.md veya docs/ içinde backtick'li kod/path referansının hedefi yok. CLAUDE.md'de High — Claude'a yanlış yer söyler |
+| `module-missing-context-doc` | Low | `.csproj` veya `package.json` içeren modül için README/CLAUDE.md/docs/context yok |
+| `claude-md-missing-adr-link` | Suggestion | ADR'lar var ama kök CLAUDE.md'sinde hiçbirine atıf yok |
+
+**ADR kalite (yalnız ADR varsa):**
+
+| Rule | Severity | Tetik |
+|------|----------|-------|
+| `adr-missing-status` | Low | ADR dosyasında `## Status` veya `Status:` yok |
+| `adr-superseded-without-link` | Suggestion | Status "Superseded" ama "Superseded by ADR-XXX" linki yok |
+| `adr-naming-drift` | Low | Klasördeki baskın naming kalıba uymayan ADR |
+
+**Operasyonel freshness:**
+
+| Rule | Severity | Tetik |
+|------|----------|-------|
+| `stale-active-doc` | Suggestion | `docs/active/` veya `docs/wip/` altında N gün dokunulmamış (varsayılan 90) |
+| `runbook-no-recent-update` | Low | `docs/runbooks/*.md` 365+ gün güncellenmemiş |
+
+**Public API XML doc:**
+
+| Rule | Severity | Tetik |
+|------|----------|-------|
+| `xml-doc-missing-on-public-api` | Low | `**/Api/**`, `**/Controllers/**`, `**/PublicApi/**` altında public C# deklarasyonu var ama `///` yorumu yok |
+
+**Parametreler:**
+
+| Parametre | Varsayılan | Açıklama |
+|-----------|-----------|----------|
+| `minSeverity` | `Low` | |
+| `readmeStaleDays` | 180 | |
+| `claudeMdStaleDays` | 90 | CLAUDE.md daha sıkı çünkü yaşayan talimat |
+| `activeDocStaleDays` | 90 | |
+| `runbookStaleDays` | 365 | |
 
 #### `domain_events_map`
 

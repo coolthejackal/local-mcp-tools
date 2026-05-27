@@ -31,7 +31,7 @@ perspektifleri.
 
 | Bileşen | Teknoloji | Rol |
 |---------|-----------|-----|
-| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; 16 araç sunar (navigasyon + review + audit suite + role-MCPs) |
+| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; 17 araç sunar (navigasyon + review + audit suite + role-MCPs) |
 | [ContextMcp.Roslyn/](ContextMcp.Roslyn/) | .NET 9 / Roslyn | C# analiz + review + audit bileşeni — 6 subkomut: `manifest` / `review` / `api-contract` / `tenant-isolation` / `arch-graph` / `domain-events` |
 
 Yalnız **ContextMcp** bir MCP sunucusudur. **ContextMcp.Roslyn** protokol konuşmaz;
@@ -43,7 +43,7 @@ ContextMcp'nin C# kodu analiz/review/audit etmek için çağırdığı bir yard�
 
 ```
 Claude Code
-    │  MCP protokolü (stdio JSON-RPC) — 16 araç
+    │  MCP protokolü (stdio JSON-RPC) — 17 araç
     ▼
 ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     │
@@ -57,10 +57,11 @@ ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     │                   tenant_isolation_audit (multi-tenant EF Core)
     │                   domain_events_map    (publisher/consumer grafı)
     │
-    └─ Role-Based (5):  arch_audit       (Architect — layer/cyclic/god-project)
+    └─ Role-Based (6):  arch_audit       (Architect — layer/cyclic/god-project)
                         qa_audit         (QA — test coverage gaps)
                         devops_audit     (DevOps — Dockerfile/compose/CI/.env)
                         security_audit   (Security — CVE/headers/cookies/auth config)
+                        docs_audit       (Tech Writer — README/CLAUDE.md/ADR/link rot)
                         pm_status        (PM — git aktivite + TODO envanteri)
 
 Backend: ContextMcp.Roslyn (.NET 9) subprocess — 6 subkomut

@@ -214,16 +214,83 @@ function scanDependencies(skip: boolean): { manifestFiles: number; findings: Fin
   return { manifestFiles: pkgJsons.length + csprojFiles.length, findings }
 }
 
+// Reverse proxy işaretleri — varsa UseHsts / UseHttpsRedirection eksikliği bastırılır.
+// Sinyaller (herhangi biri yeterli):
+//   - nginx/Caddy yapılandırması: nginx.conf veya nginx/ klasörü veya Caddyfile
+//   - Dockerfile yalnız EXPOSE 80 (HTTPS yok)
+//   - Program.cs içinde UseForwardedHeaders veya ForwardedHeadersOptions
+let reverseProxyDetected: boolean | null = null
+function detectReverseProxy(programCsTexts: string[]): boolean {
+  if (reverseProxyDetected !== null) return reverseProxyDetected
+
+  // 1) nginx / Caddy yapılandırması
+  const proxyConfigFiles: string[] = []
+  walkRepo(CONFIG.ROOT_DIR, (_rel, name) =>
+    name === "nginx.conf" || name === "Caddyfile" || /\.conf$/i.test(name) && _rel.includes("nginx"),
+    proxyConfigFiles
+  )
+  if (proxyConfigFiles.length > 0) { reverseProxyDetected = true; return true }
+
+  // 2) nginx/ klasörü (config olmasa bile)
+  const nginxDir = path.join(CONFIG.ROOT_DIR, "nginx")
+  if (fs.existsSync(nginxDir) && fs.statSync(nginxDir).isDirectory()) {
+    reverseProxyDetected = true; return true
+  }
+
+  // 3) Program.cs içinde forwarded headers
+  for (const text of programCsTexts) {
+    if (/UseForwardedHeaders|ForwardedHeadersOptions/.test(text)) {
+      reverseProxyDetected = true; return true
+    }
+  }
+
+  // 4) Dockerfile EXPOSE 80 var ama EXPOSE 443 yok
+  const dockerfiles: string[] = []
+  walkRepo(CONFIG.ROOT_DIR, (_rel, name) => /^Dockerfile/i.test(name), dockerfiles)
+  let dockerHttpOnly = 0
+  for (const df of dockerfiles) {
+    let text: string
+    try { text = fs.readFileSync(df, "utf8") } catch { continue }
+    if (/^\s*EXPOSE\s+80\b/im.test(text) && !/^\s*EXPOSE\s+443\b/im.test(text)) dockerHttpOnly++
+  }
+  if (dockerHttpOnly > 0 && dockerHttpOnly === dockerfiles.length) {
+    reverseProxyDetected = true; return true
+  }
+
+  reverseProxyDetected = false
+  return false
+}
+
 // ─── 3) HTTP security headers + CORS (Program.cs / Startup.cs text scan) ───
 function scanHttpSecurity(): Finding[] {
   const findings: Finding[] = []
   const files: string[] = []
   walkRepo(CONFIG.ROOT_DIR, (_rel, name) => name === "Program.cs" || name === "Startup.cs", files)
 
+  // Önce tüm Program.cs içeriklerini yükle (reverse proxy detection için lazım)
+  const fileTexts: Array<{ file: string; text: string }> = []
   for (const file of files) {
-    let text: string
-    try { text = fs.readFileSync(file, "utf8") } catch { continue }
+    try { fileTexts.push({ file, text: fs.readFileSync(file, "utf8") }) } catch { /* skip */ }
+  }
 
+  const proxyMode = detectReverseProxy(fileTexts.map((ft) => ft.text))
+  if (proxyMode && fileTexts.length > 0) {
+    // Bilgi amaçlı tek bir Suggestion — UseHsts/UseHttpsRedirection bulguları bastırıldı
+    findings.push(makeFinding(
+      "Suggestion",
+      "reverse-proxy-detected",
+      fileTexts[0].file, 1,
+      "Reverse proxy işareti bulundu (nginx/Caddyfile/UseForwardedHeaders/EXPOSE 80-only); " +
+      "uygulama-seviyesi UseHsts / UseHttpsRedirection bulguları bastırıldı.",
+      "Yanlış pozitif önleme: TLS termination proxy katmanında yapılıyorsa uygulama HTTPS " +
+      "redirect'i sonsuz döngü veya gereksiz hop üretebilir.",
+      "HSTS / HTTPS redirect / security header'larını **reverse proxy yapılandırmasında** " +
+      "doğrula (örn: nginx 'add_header Strict-Transport-Security ...', 'return 301 https://...'). " +
+      "Eğer aslında reverse proxy kullanmıyorsan bu sinyalleri kaldır."
+    ))
+  }
+
+  for (const { file, text } of fileTexts) {
     const lines = text.split(/\r?\n/)
     const lineOf = (needle: string): number => {
       const i = lines.findIndex((l) => l.includes(needle))
@@ -236,10 +303,9 @@ function scanHttpSecurity(): Finding[] {
     const hasAllowAnyOriginWithCredentials =
       /AllowAnyOrigin\s*\(\s*\)/.test(text) && /AllowCredentials\s*\(\s*\)/.test(text)
 
-    // Mücadele: aspnet core minimal API + WebApplicationBuilder pattern'inde IsDevelopment kontrolü var
     const probableProductionPath = /Environment\.IsProduction|app\.Environment\.IsDevelopment|builder\.Environment/.test(text)
 
-    if (!hasUseHsts && probableProductionPath) {
+    if (!proxyMode && !hasUseHsts && probableProductionPath) {
       findings.push(makeFinding(
         "High",
         "missing-hsts",
@@ -250,7 +316,7 @@ function scanHttpSecurity(): Finding[] {
         "Production branch'inde app.UseHsts() ekle. HstsOptions ile MaxAge ve Subdomains ayarla."
       ))
     }
-    if (!hasUseHttpsRedirect) {
+    if (!proxyMode && !hasUseHttpsRedirect) {
       findings.push(makeFinding(
         "Medium",
         "missing-https-redirect",

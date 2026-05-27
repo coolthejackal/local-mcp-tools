@@ -14,6 +14,7 @@ export type RoleKey =
   | "devops-engineer"
   | "tenant-isolation-auditor"
   | "domain-events-analyst"
+  | "documentation-writer"
 
 // Ortak güvenlik talimatları — her prompt'a eklenir.
 const SECURITY_PREAMBLE = [
@@ -64,6 +65,10 @@ const ROLE_PERSONAS: Record<RoleKey, string> = {
   "domain-events-analyst":
     "You are an event-driven systems architect. Focus on event contract drift, " +
     "orphan publishers/consumers, and ordering/at-least-once semantics.",
+  "documentation-writer":
+    "You are a technical writer focused on README/CLAUDE.md freshness, ADR completeness, " +
+    "cross-reference integrity (especially in CLAUDE.md files that direct an AI assistant), " +
+    "and public-API documentation. Suggest concrete sentence and link edits where possible.",
 }
 
 export function systemPromptFor(role: RoleKey): string {
