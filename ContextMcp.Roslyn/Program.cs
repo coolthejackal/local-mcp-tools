@@ -3,6 +3,8 @@ using Microsoft.CodeAnalysis.CSharp;
 using ContextMcp.Roslyn;
 using ContextMcp.Roslyn.Review;
 using ContextMcp.Roslyn.Audit.ApiContract;
+using ContextMcp.Roslyn.Audit.TenantIsolation;
+using ContextMcp.Roslyn.Audit.ArchGraph;
 
 // Argümanlar:
 //   ContextMcp.Roslyn manifest <kaynakKök> <çıktıDosyası>
@@ -23,7 +25,7 @@ if (args.Length < 2)
 
 string subcommand;
 string[] rest;
-if (args[0] is "manifest" or "review" or "api-contract")
+if (args[0] is "manifest" or "review" or "api-contract" or "tenant-isolation" or "arch-graph")
 {
     subcommand = args[0];
     rest = args.Skip(1).ToArray();
@@ -40,6 +42,8 @@ return subcommand switch
     "manifest" => RunManifest(rest),
     "review" => RunReview(rest),
     "api-contract" => RunApiContract(rest),
+    "tenant-isolation" => RunTenantIsolation(rest),
+    "arch-graph" => RunArchGraph(rest),
     _ => Fail($"Bilinmeyen subkomut: {subcommand}"),
 };
 
@@ -146,5 +150,39 @@ static int RunApiContract(string[] a)
     Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
     File.WriteAllText(outputFile, json);
     Console.Error.WriteLine($"[ContextMcp.Roslyn] api-contract: {endpoints.Count} endpoint → {outputFile}");
+    return 0;
+}
+
+static int RunTenantIsolation(string[] a)
+{
+    if (a.Length < 2) return Fail("tenant-isolation: <kaynakKök> <çıktıDosyası> gerekli.");
+    var sourceRoot = Path.GetFullPath(a[0]);
+    var outputFile = Path.GetFullPath(a[1]);
+    if (!Directory.Exists(sourceRoot)) return Fail($"Kaynak dizin bulunamadı: {sourceRoot}");
+
+    var result = TenantIsolationRunner.Run(sourceRoot);
+    var json = JsonSerializer.Serialize(
+        result,
+        new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+    File.WriteAllText(outputFile, json);
+    Console.Error.WriteLine($"[ContextMcp.Roslyn] tenant-isolation: {result.Entities.Count} entity, {result.IgnoreCalls.Count} ignore-call → {outputFile}");
+    return 0;
+}
+
+static int RunArchGraph(string[] a)
+{
+    if (a.Length < 2) return Fail("arch-graph: <kaynakKök> <çıktıDosyası> gerekli.");
+    var sourceRoot = Path.GetFullPath(a[0]);
+    var outputFile = Path.GetFullPath(a[1]);
+    if (!Directory.Exists(sourceRoot)) return Fail($"Kaynak dizin bulunamadı: {sourceRoot}");
+
+    var result = ArchGraphRunner.Run(sourceRoot);
+    var json = JsonSerializer.Serialize(
+        result,
+        new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+    File.WriteAllText(outputFile, json);
+    Console.Error.WriteLine($"[ContextMcp.Roslyn] arch-graph: {result.Projects.Count} proje → {outputFile}");
     return 0;
 }

@@ -17,6 +17,9 @@ import { reviewCode } from "./review/reviewEngine"
 import type { Category, Severity } from "./review/severity"
 import { runApiContractAudit } from "./audit/apaas/apiContractAudit/runner"
 import { runFrontendCompliance } from "./audit/apaas/frontendCompliance/runner"
+import { runTenantIsolationAudit } from "./audit/apaas/tenantIsolation/runner"
+import { runArchAudit } from "./audit/roles/archAudit/runner"
+import { runQaAudit } from "./audit/roles/qaAudit/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
 import { CONFIG } from "./core/config"
 
@@ -206,6 +209,65 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "tenant_isolation_audit",
+      description:
+        "Multi-tenant SaaS izolasyon kontrolü. EF Core DbContext'lerini tarar, " +
+        "HasQueryFilter tanımı + TenantId referansı eksikliklerini, yorum olmayan " +
+        ".IgnoreQueryFilters() çağrılarını bulur. Roslyn semantic analiz.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
+      name: "arch_audit",
+      description:
+        "Architect perspektifi: .csproj ProjectReference grafından katman ihlali " +
+        "(Domain→Infrastructure), cyclic references, god-project tespiti. " +
+        "Roslyn arch-graph subkomutu.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+          godProjectThreshold: {
+            type: "number",
+            description: "Bir projeye gelen ref sayısı bu eşiği aşarsa 'god-project' uyarısı (varsayılan: 20).",
+          },
+        },
+      },
+    },
+    {
+      name: "qa_audit",
+      description:
+        "QA Engineer perspektifi: production fn ↔ test eşleştirmesi, empty-test, " +
+        "skipped-test, todo-in-test, excessive-mocks kuralları. " +
+        "TS/JS jest/vitest test framework keşfi.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+          excessiveMocksThreshold: {
+            type: "number",
+            description: "Bir test'te bu sayıdan fazla mock olursa 'excessive-mocks' (varsayılan: 5).",
+          },
+        },
+      },
+    },
+    {
       name: "read_manifest",
       description:
         "Manifest dosyalarında (docs/monorepo/<alt-proje>/mcp-index.json) hızlı arama yapar. " +
@@ -301,6 +363,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
           categories: opts.categories,
           minSeverity: opts.minSeverity,
         })
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "tenant_isolation_audit": {
+        const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
+        const result = await runTenantIsolationAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "arch_audit": {
+        const opts = (args as {
+          minSeverity?: Severity
+          godProjectThreshold?: number
+        } | undefined) ?? {}
+        const result = await runArchAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "qa_audit": {
+        const opts = (args as {
+          minSeverity?: Severity
+          excessiveMocksThreshold?: number
+        } | undefined) ?? {}
+        const result = await runQaAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 
