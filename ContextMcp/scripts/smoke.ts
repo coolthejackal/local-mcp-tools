@@ -13,6 +13,7 @@ import { runTenantIsolationAudit } from "../src/audit/apaas/tenantIsolation/runn
 import { runArchAudit } from "../src/audit/roles/archAudit/runner"
 import { runQaAudit } from "../src/audit/roles/qaAudit/runner"
 import { runDevOpsAudit } from "../src/audit/roles/devopsAudit/runner"
+import { runSecurityAudit } from "../src/audit/roles/securityAudit/runner"
 import { runPmStatus } from "../src/audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "../src/audit/apaas/domainEventsMap/runner"
 import { CONFIG } from "../src/core/config"
@@ -120,6 +121,17 @@ async function main() {
     process.stdout.write(`  byRule: ${JSON.stringify(r.byRule)}\n`)
   }
 
+  // skipDependencyScan: true — smoke test'i hızlı tutmak için npm audit + dotnet list package atla.
+  // Gerçek kullanımda false bırakılır.
+  const security = await step("security_audit (deps skipped for speed)", () =>
+    runSecurityAudit({ minSeverity: "Medium", skipDependencyScan: true })
+  )
+  if (security.result) {
+    const r = security.result as any
+    process.stdout.write(`  configFiles: ${r.scanned.configFiles}, findings: ${r.findings.length}\n`)
+    process.stdout.write(`  byRule: ${JSON.stringify(r.byRule)}\n`)
+  }
+
   const pm = await step("pm_status", () =>
     runPmStatus({ sinceDays: 30 })
   )
@@ -139,9 +151,10 @@ async function main() {
 
   // Özet
   process.stdout.write("\n=== Özet ===\n")
-  const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, pm, events]
+  const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, security, pm, events]
   const labels = ["build_context", "review", "api_contract_audit", "frontend_compliance",
-    "tenant_isolation_audit", "arch_audit", "qa_audit", "devops_audit", "pm_status", "domain_events_map"]
+    "tenant_isolation_audit", "arch_audit", "qa_audit", "devops_audit", "security_audit",
+    "pm_status", "domain_events_map"]
   for (let i = 0; i < all.length; i++) {
     const r = all[i]
     process.stdout.write(`  ${r.ok ? "✓" : "✗"} ${labels[i].padEnd(28)} ${(r.durationMs / 1000).toFixed(2).padStart(6)}s\n`)

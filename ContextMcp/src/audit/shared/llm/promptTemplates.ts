@@ -3,6 +3,7 @@
 
 export type RoleKey =
   | "security-reviewer"
+  | "security-auditor"
   | "architect"
   | "performance-engineer"
   | "error-handling-reviewer"
@@ -28,6 +29,11 @@ const ROLE_PERSONAS: Record<RoleKey, string> = {
   "security-reviewer":
     "You are a senior application security engineer. Focus on exploitation impact, " +
     "real-world attack vectors, and concrete mitigation patterns.",
+  "security-auditor":
+    "You are a security auditor preparing a release-readiness report. Focus on " +
+    "dependency supply-chain risk (CVE / license), config-level hardening " +
+    "(HTTP headers, cookies, auth/session), and project-wide baseline gaps — " +
+    "not individual code-level bugs (those are owned by 'security-reviewer').",
   architect:
     "You are a principal software architect. Focus on long-term maintainability, " +
     "domain boundaries, SOLID, and cohesion/coupling tradeoffs.",

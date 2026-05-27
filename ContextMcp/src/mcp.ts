@@ -21,6 +21,7 @@ import { runTenantIsolationAudit } from "./audit/apaas/tenantIsolation/runner"
 import { runArchAudit } from "./audit/roles/archAudit/runner"
 import { runQaAudit } from "./audit/roles/qaAudit/runner"
 import { runDevOpsAudit } from "./audit/roles/devopsAudit/runner"
+import { runSecurityAudit } from "./audit/roles/securityAudit/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -272,6 +273,31 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "security_audit",
+      description:
+        "Security Engineer perspektifi — kod-AST dışı güvenlik baseline'ı: " +
+        "repo-wide config dosyalarında secret scan, npm audit + dotnet list package CVE, " +
+        "HTTP security headers (HSTS / HTTPS redirect / CORS misconfiguration), " +
+        "cookie attribute'ları (SameSite / Secure / HttpOnly), " +
+        "JWT/Identity auth config (lifetime, password policy), " +
+        "license compatibility (copyleft vs proprietary). " +
+        "`review` aracı kod-AST tarafını kapsar; security_audit release-öncesi strategic raporu için.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+          skipDependencyScan: {
+            type: "boolean",
+            description: "true ise npm audit + dotnet list --vulnerable atlanır (CI dışı hızlı çalıştırma için).",
+          },
+        },
+      },
+    },
+    {
       name: "devops_audit",
       description:
         "DevOps perspektifi: Dockerfile (multi-stage, non-root USER), docker-compose " +
@@ -440,6 +466,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
           excessiveMocksThreshold?: number
         } | undefined) ?? {}
         const result = await runQaAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "security_audit": {
+        const opts = (args as { minSeverity?: Severity; skipDependencyScan?: boolean } | undefined) ?? {}
+        const result = await runSecurityAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 

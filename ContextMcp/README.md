@@ -128,6 +128,7 @@ Claude sırasıyla şunları yapar:
 | `arch_audit` | Architect: .csproj referans grafından katman ihlali (Domain→Infrastructure), cyclic refs, god-project. |
 | `qa_audit` | QA Engineer: prod fn ↔ test eşleştirmesi, empty-test, skipped-test, todo-in-test, excessive-mocks. |
 | `devops_audit` | DevOps: Dockerfile (multi-stage, non-root), docker-compose (healthcheck, secret), .env secrets, CI workflow. |
+| `security_audit` | Security Engineer: kod-AST dışı baseline — repo-wide config secrets, npm/dotnet CVE, HTTP headers, cookies, JWT/Identity config, license uyumu. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -252,6 +253,34 @@ Multi-tenant SaaS izolasyon kontrolü (EF Core odaklı). **Roslyn semantic model
 | `entity-tenant-no-filter` | Entity'de TenantId property var, HasQueryFilter yok |
 | `entity-filter-no-tenant-mention` | HasQueryFilter tanımı var ama TenantId referansı içermiyor |
 | `ignore-query-filters-without-comment` | `.IgnoreQueryFilters()` çağrısının üstünde gerekçe yorumu yok |
+
+#### `security_audit`
+
+Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'ı. **`review`'ın Security kategorisinin tamamlayıcısı:** `review` kod-AST kurallarını (hardcoded-secret, sql-injection, weak-crypto vb. AST içinde) kapsar, query-driven çalışır. `security_audit` ise kod-AST **dışı** alanlarda full-project tarama yapar.
+
+| Rule | Kapsam | Severity |
+|------|--------|----------|
+| `config-file-secret` | repo-wide `.json/.yml/.yaml/.config/.xml/.properties/.ini/.toml` (devops_audit'in kapsamı hariç) | Critical |
+| `dependency-cve` | `npm audit --json` + `dotnet list package --vulnerable --include-transitive --format json` | Severity üst akıştan (Critical / High / Medium / Low) |
+| `missing-hsts` | Program.cs/Startup.cs içinde `app.UseHsts()` çağrısı yok ve production path var | High |
+| `missing-https-redirect` | `app.UseHttpsRedirection()` yok | Medium |
+| `cors-any-origin-with-credentials` | `AllowAnyOrigin()` + `AllowCredentials()` aynı dosyada | Critical |
+| `cookie-missing-samesite` / `-secure` / `-httponly` | `.AddCookie(...)` veya `ConfigureApplicationCookie(...)` çağrısı var ama ilgili attribute eksik | High / High / Medium |
+| `password-policy-weak` | Identity options `RequiredLength < 8` | High |
+| `jwt-lifetime-too-long` | appsettings.json `Jwt.ExpirationMinutes > 60` | Medium |
+| `jwt-symmetric-algorithm` | Algorithm HS* (paylaşılan secret riski) | Low |
+| `license-copyleft-conflict` | Proje permissive ama bağımlılık copyleft (GPL/AGPL/LGPL) | Medium |
+
+**Parametreler:**
+
+| Parametre | Açıklama |
+|-----------|----------|
+| `minSeverity` | Varsayılan `Low` |
+| `skipDependencyScan` | `true` → `npm audit` / `dotnet list package --vulnerable` atlanır (CI dışı hızlı çalıştırma). Varsayılan `false`. |
+
+> **Çağrı rolü farkı:**
+> - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
+> - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
 
 #### `domain_events_map`
 
