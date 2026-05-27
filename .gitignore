@@ -5,6 +5,10 @@ ContextMcp/dist/
 # Ortam ve gizli bilgiler
 .env
 .env.*
+!.env.example
+
+# LLM enrichment cache (CTX_ROOT içinde de yazılabilir; repo köküne yazılırsa da dışla)
+.cache/mcp-llm/
 
 # Otomatik üretilen manifest (build_context çalıştırınca yenilenir)
 mcp-index.json
