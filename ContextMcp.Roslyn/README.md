@@ -1,11 +1,14 @@
 # ContextMcp.Roslyn
 
 [`ContextMcp`](../ContextMcp/) MCP sunucusunun **C# analiz bileşeni**. Roslyn
-(`Microsoft.CodeAnalysis`) ile C# kaynak kodunu parse eder, iki rolü vardır:
+(`Microsoft.CodeAnalysis`) ile C# kaynak kodunu parse eder. Altı subkomut sunar:
 
-1. **`manifest` subkomutu** — `*.cs` dosyalarından `mcp-index.json` üretir (syntax tree).
-2. **`review` subkomutu** — Verilen `*.cs` dosyalarını enterprise code review'dan geçirir
-   (`CSharpCompilation` + `SemanticModel`) ve severity seviyelendirilmiş bulgular döner.
+1. **`manifest`** — `*.cs` dosyalarından `mcp-index.json` üretir (syntax tree).
+2. **`review`** — Verilen dosyaları enterprise code review'dan geçirir (Security/Architecture/Performance/ErrorHandling, semantic model).
+3. **`api-contract`** — Endpoint envanteri: Minimal API + MapGroup + MVC controllers, [Authorize] / `.RequireAuthorization()` parse, request/response tipleri, CancellationToken varlığı.
+4. **`tenant-isolation`** — EF Core multi-tenant analizi: DbContext'ler, `HasQueryFilter` zincirleri, `.IgnoreQueryFilters()` çağrıları + yorum durumu.
+5. **`arch-graph`** — `.csproj` ProjectReference grafından proje düğümleri ve katman atamaları.
+6. **`domain-events`** — Publisher/Consumer pattern keşfi (IEventBus.PublishAsync<T>, IEventHandler<T> vb.) — cross-file compilation.
 
 > **Bu bir MCP sunucusu değildir.** MCP protokolü konuşmaz. `ContextMcp`'nin subprocess
 > olarak çağırdığı bir komut satırı aracıdır — normalde elle çalıştırılmaz.
@@ -85,6 +88,87 @@ dotnet run --project ContextMcp.Roslyn -- review <dosyaListesi> <çıktıDosyas�
 Bu komut da normalde elle çalıştırılmaz — `ContextMcp`'nin `review_code` aracı
 [roslynBridge.ts](../ContextMcp/src/review/roslynBridge.ts) üzerinden tetikler.
 
+### `api-contract` subkomutu
+
+```bash
+dotnet run --project ContextMcp.Roslyn -- api-contract <kaynakKök> <çıktıDosyası>
+```
+
+Tüm endpoint envanterini camelCase JSON dizisi olarak yazar. Şekil:
+
+```json
+[
+  {
+    "method": "POST",
+    "route": "/api/v1/users/{id}",
+    "source": "minimal-api",
+    "file": "...",
+    "line": 42,
+    "auth": "AuthorizationPoliciesSetup.UserOnly",
+    "handlerName": "UpdateUser",
+    "requestType": "UpdateUserRequest",
+    "responseType": "Task<IResult>",
+    "hasCancellationToken": true
+  }
+]
+```
+
+`source` değerleri: `minimal-api`, `extension-method`, `mvc-controller`. `auth` `null` (yok), `"anonymous"` (AllowAnonymous), veya `RequireAuthorization` argümanlarının metni.
+
+TS tarafı: [api_contract_audit](../ContextMcp/src/audit/apaas/apiContractAudit/) bu çıktıyı Postman koleksiyonu ile karşılaştırarak drift bulur.
+
+### `tenant-isolation` subkomutu
+
+```bash
+dotnet run --project ContextMcp.Roslyn -- tenant-isolation <kaynakKök> <çıktıDosyası>
+```
+
+```json
+{
+  "entities": [
+    { "name": "Order", "hasTenantIdProperty": true, "hasQueryFilter": false, ... }
+  ],
+  "ignoreCalls": [
+    { "file": "...", "line": 84, "hasPrecedingComment": false }
+  ]
+}
+```
+
+Tanınan tenant property adları: `TenantId`, `WorkspaceId`, `OrganizationId`, `tenant_id` (case-insensitive). `HasQueryFilter` çağrı argümanı içinde bu adlardan biri geçiyorsa filter "tenant-aware" sayılır.
+
+### `arch-graph` subkomutu
+
+```bash
+dotnet run --project ContextMcp.Roslyn -- arch-graph <kaynakKök> <çıktıDosyası>
+```
+
+`.csproj` dosyalarını recursive tarayıp ProjectReference grafını XML'den okur. Katman tespiti proje adı + path heuristiğiyle (`\bdomain\b`, `\binfrastructure\b`, `\bapplication\b`, `\bapi\b|\bcontrollers?\b`, `\btests?\b`).
+
+```json
+{
+  "projects": [
+    { "name": "OneFlow.Domain", "path": "...", "layer": "domain", "references": ["OneFlow.Common"] }
+  ]
+}
+```
+
+### `domain-events` subkomutu
+
+```bash
+dotnet run --project ContextMcp.Roslyn -- domain-events <kaynakKök> <çıktıDosyası>
+```
+
+Tüm `.cs` dosyalarını **tek bir CSharpCompilation** içinde toplar — cross-file event tipi çözümlemesi için. Publisher pattern'leri: `PublishAsync`, `Publish`, `Send`, `SendAsync`, `Notify`, `Dispatch`, `DispatchAsync` (generic invocation veya semantic-type-info argümandan). Consumer interface'leri: `IEventHandler<T>`, `INotificationHandler<T>`, `IConsumer<T>`, `IRequestHandler<T>`, `IDomainEventHandler<T>`.
+
+```json
+{
+  "publishers": [{ "eventType": "OrderCreated", "file": "...", "line": 42, "project": "OneFlow.Identity.API" }],
+  "consumers":  [{ "eventType": "OrderCreated", "handlerClass": "OrderCreatedHandler", "file": "...", "line": 18, "project": "OneFlow.Notifications.API" }]
+}
+```
+
+`project` alanı: dosya yolundan en yakın `.csproj` içeren klasörün adı (heuristik).
+
 ---
 
 ## Review Kuralları
@@ -155,13 +239,15 @@ tip / sembol bilgisine erişilir (örn. `string += ...` için sol tarafın gerç
 
 | Dosya | İçerik |
 |-------|--------|
-| `Program.cs` | Giriş noktası — `manifest` / `review` subkomut yönlendirmesi |
+| `Program.cs` | Giriş noktası — 6 subkomut yönlendirmesi (manifest / review / api-contract / tenant-isolation / arch-graph / domain-events) |
 | `Extractor.cs` | Manifest için Roslyn tip / method / attribute / DI çıkarımı |
 | `Models.cs` | Manifest JSON modelleri (`ManifestRoot`, `FileEntry`, `FuncEntry`) |
-| `Review/Finding.cs` | Review bulgu modeli (TS tarafıyla uyumlu) |
-| `Review/IRule.cs` | Kural arayüzü ve yardımcılar |
-| `Review/ReviewRunner.cs` | `CSharpCompilation` kurar, kuralları çalıştırır, `Finding[]` üretir |
-| `Review/Rules/*.cs` | 4 kategori × kural sınıfları |
+| `Review/Finding.cs` + `IRule.cs` + `ReviewRunner.cs` | Code review altyapısı (CSharpCompilation + SemanticModel) |
+| `Review/Rules/*.cs` | 4 kategori × kural sınıfları (Security, Architecture, Performance, ErrorHandling) |
+| `Audit/ApiContract/*.cs` | `api-contract` subkomutu — Minimal API + MapGroup + MVC endpoint extractor |
+| `Audit/TenantIsolation/TenantIsolationRunner.cs` | `tenant-isolation` subkomutu — DbContext + HasQueryFilter zincirleri |
+| `Audit/ArchGraph/ArchGraphRunner.cs` | `arch-graph` subkomutu — .csproj ProjectReference + layer tespiti |
+| `Audit/DomainEvents/DomainEventsRunner.cs` | `domain-events` subkomutu — publisher/consumer pattern keşfi (cross-file) |
 
 ---
 

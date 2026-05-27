@@ -13,15 +13,17 @@ böylece Claude tüm dosyaları tek tek okumadan önce projeyi anlar.
 Büyük bir projede Claude'un her dosyayı okuması yavaş ve pahalıdır. ContextMCP projeyi
 önceden tarayıp fonksiyon/method imzalarını, tiplerini ve çağrı zincirlerini bir
 `mcp-index.json` dosyasına yazar. Claude önce buraya bakar, hangi dosyalara
-odaklanacağını bilir. Ayrıca **enterprise-grade code review** üretir — Security,
-Architecture, Performance, ErrorHandling kategorilerinde severity seviyelendirilmiş
-bulgular.
+odaklanacağını bilir. Ayrıca **enterprise-grade code review + APaaS audit suite + rol-bazlı
+MCP'ler** sunar — Security/Architecture/Performance/ErrorHandling, endpoint envanteri +
+Postman drift, multi-tenant izolasyon, frontend konvansiyon, DevOps/QA/PM/Architect
+perspektifleri.
 
 - **Proje izolasyonu** — yalnız belirlenen kök dizin (`CTX_ROOT`) taranır, dışına çıkılmaz
 - **Gizli bilgi maskeleme** — API key, token, şifre, bağlantı dizgisi otomatik gizlenir
 - **Çok dilli** — TypeScript/JavaScript ve C#/.NET
 - **Monorepo** — frontend ve backend ayrı ayrı, karışmadan
-- **Code review** — `review_code` aracı: TS Compiler API + Roslyn semantic model ile statik kural motoru
+- **Code review + Audit Suite** — `review_code` + 8 audit aracı: TS Compiler API + Roslyn semantic model ile statik kural motoru
+- **Opsiyonel LLM enrichment** — API anahtarı verilirse her bulguya daha derin insight, kapalıyken 0 HTTP çağrısı
 
 ---
 
@@ -29,11 +31,11 @@ bulgular.
 
 | Bileşen | Teknoloji | Rol |
 |---------|-----------|-----|
-| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; TS/JS analizini ve TS/JS code review'u kendi yapar |
-| [ContextMcp.Roslyn/](ContextMcp.Roslyn/) | .NET 9 / Roslyn | C# analiz + review bileşeni — ContextMcp tarafından çağrılır (`manifest` / `review` subkomutları) |
+| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; 15 araç sunar (navigasyon + review + audit suite + role-MCPs) |
+| [ContextMcp.Roslyn/](ContextMcp.Roslyn/) | .NET 9 / Roslyn | C# analiz + review + audit bileşeni — 6 subkomut: `manifest` / `review` / `api-contract` / `tenant-isolation` / `arch-graph` / `domain-events` |
 
 Yalnız **ContextMcp** bir MCP sunucusudur. **ContextMcp.Roslyn** protokol konuşmaz;
-ContextMcp'nin C# kodu analiz/review etmek için çağırdığı bir yardımcıdır.
+ContextMcp'nin C# kodu analiz/review/audit etmek için çağırdığı bir yardımcıdır.
 
 ---
 
@@ -41,26 +43,31 @@ ContextMcp'nin C# kodu analiz/review etmek için çağırdığı bir yardımcıd
 
 ```
 Claude Code
-    │  MCP protokolü (stdio JSON-RPC)
+    │  MCP protokolü (stdio JSON-RPC) — 15 araç
     ▼
 ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     │
-    ├─ build_context / smart_context / find_bugs / ...
-    │       │
-    │       ├─ TypeScript / JS  →  TS Compiler API   (dahili)
-    │       └─ C#               →  ContextMcp.Roslyn manifest (subprocess)
-    │                                     │
-    │       ┌─────────────────────────────┘
-    │       ▼
-    │   <proje>/docs/monorepo/<alt-proje>/mcp-index.json
+    ├─ Navigasyon (6):  build_context / smart_context / final_context /
+    │                   find_functions / find_bugs / read_manifest
     │
-    └─ review_code  →  Security / Architecture / Performance / ErrorHandling
-            │
-            ├─ TypeScript / JS  →  TS Compiler API semantic kuralları (dahili)
-            └─ C#               →  ContextMcp.Roslyn review (subprocess)
-                                       │  CSharpCompilation + SemanticModel
-                                       ▼
-                                   Finding[] (severity / category / impact / recommendation)
+    ├─ Code Review:     review_code   (Senior Code Reviewer rolü)
+    │
+    ├─ APaaS Audit (4): api_contract_audit   (endpoint envanteri + Postman drift)
+    │                   frontend_compliance  (axios/DX/interceptor)
+    │                   tenant_isolation_audit (multi-tenant EF Core)
+    │                   domain_events_map    (publisher/consumer grafı)
+    │
+    └─ Role-Based (4):  arch_audit    (Architect — layer/cyclic/god-project)
+                        qa_audit      (QA — test coverage gaps)
+                        devops_audit  (DevOps — Dockerfile/compose/CI/.env)
+                        pm_status     (PM — git aktivite + TODO envanteri)
+
+Backend: ContextMcp.Roslyn (.NET 9) subprocess — 6 subkomut
+    manifest / review / api-contract / tenant-isolation / arch-graph / domain-events
+
+Opsiyonel: LLM enrichment (LLM_ENABLED=true + API key)
+    → Her finding'in `enrichment.insight` alanı LLM ile zenginleştirilir
+    → Varsayılan kapalı — 0 HTTP, 0 ek paket
 ```
 
 ---
@@ -122,18 +129,39 @@ Monorepo'da her alt proje (backend, frontend …) kendi manifest'ini alır — k
 Claude → build_context           (ilk oturumda bir kez)
        → smart_context "ödeme"   (kavramla ilgili dosyaları bulur)
        → review_code "ödeme"     (aynı kapsamı code review'dan geçirir)
+       → api_contract_audit      (endpoint envanteri + Postman drift)
+       → frontend_compliance "login"  (axios/DX/interceptor kontrolü)
+       → tenant_isolation_audit  (EF Core HasQueryFilter eksikleri)
+       → arch_audit              (katman ihlali, cyclic refs)
+       → qa_audit                (test coverage gaps)
+       → devops_audit            (Dockerfile/compose/CI)
+       → pm_status               (commit aktivitesi, TODO, dead branches)
+       → domain_events_map       (publisher/consumer grafı, orphan event)
 ```
 
-`review_code` parametreleri:
+### Opsiyonel: LLM Enrichment
 
-| Parametre | Açıklama | Örnek |
-|-----------|----------|-------|
-| `query` | Review kapsamı (zorunlu) | `"kullanıcı kaydı"` |
-| `categories` | Yalnız bu kategoriler | `["Security", "ErrorHandling"]` |
-| `minSeverity` | Bu seviyenin altı gizlenir | `"High"` |
+`.env`'e ekle (varsayılan: kapalı):
 
-Detaylar: [ContextMcp/README.md](ContextMcp/README.md#review_code--enterprise-code-review) ·
-[ContextMcp.Roslyn/README.md](ContextMcp.Roslyn/README.md#review-subkomutu)
+```env
+LLM_ENABLED=true
+LLM_PROVIDER=anthropic
+LLM_MODEL=claude-haiku-4-5-20251001
+LLM_API_KEY=sk-ant-...
+LLM_MAX_TOKENS=1024
+LLM_BUDGET_USD_PER_RUN=0.50
+```
+
+ve paketi yükle:
+```bash
+cd ContextMcp && npm install --save-optional @anthropic-ai/sdk
+```
+
+Her finding'e `enrichment.insight` (LLM yorumu) eklenir. Hardcoded-secret bulgusu için snippet redact'lanır — sırrın kendisi LLM'e gönderilmez.
+
+Detaylar:
+- [ContextMcp/README.md](ContextMcp/README.md#audit-araçları--apaas--role-based-mcps) — tüm araçlar + LLM
+- [ContextMcp.Roslyn/README.md](ContextMcp.Roslyn/README.md) — Roslyn subkomutları
 
 ---
 
