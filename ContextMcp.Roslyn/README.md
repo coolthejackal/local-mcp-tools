@@ -85,7 +85,7 @@ dotnet run --project ContextMcp.Roslyn -- review <dosyaListesi> <çıktıDosyas�
 | `<çıktıDosyası>` | `Finding[]` JSON dizisinin yazılacağı yol |
 | `--categories=...` | Opsiyonel — virgülle ayrılmış kategori filtresi (`Security,Architecture,Performance,ErrorHandling`) |
 
-Bu komut da normalde elle çalıştırılmaz — `ContextMcp`'nin `review_code` aracı
+Bu komut da normalde elle çalıştırılmaz — `ContextMcp`'nin `review` aracı
 [roslynBridge.ts](../ContextMcp/src/review/roslynBridge.ts) üzerinden tetikler.
 
 ### `api-contract` subkomutu

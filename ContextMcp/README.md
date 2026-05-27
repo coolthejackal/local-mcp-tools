@@ -120,7 +120,7 @@ Claude sırasıyla şunları yapar:
 | `final_context` | Token limitine sıkıştırılmış bağlam döner. Büyük projelerde tercih edin. |
 | `find_functions` | Sorguyla eşleşen fonksiyonları ve tam içeriklerini döner. |
 | `find_bugs` | İlgili kod bölgelerindeki olası hataları ve anti-pattern'leri tespit eder. |
-| `review_code` | Enterprise-grade code review — Security / Architecture / Performance / ErrorHandling. Severity seviyelendirilmiş bulgular. |
+| `review` | Enterprise-grade code review — Security / Architecture / Performance / ErrorHandling. Severity seviyelendirilmiş bulgular. |
 | `read_manifest` | `mcp-index.json` içinde fonksiyon / sınıf / attribute araması. |
 | `api_contract_audit` | Endpoint envanteri (MVC + Minimal API + MapGroup) + Postman drift, auth kapsamı, missing-cancellation-token. |
 | `frontend_compliance` | Frontend konvansiyon kontrolü: direct-axios, native HTML form elemanları, 5xx/401/429 manuel toast, missing loading state. |
@@ -133,7 +133,7 @@ Claude sırasıyla şunları yapar:
 
 ---
 
-## `review_code` — Enterprise Code Review
+## `review` — Code Review (Enterprise-grade)
 
 Sorguyla ilgili dosyaları "Senior Code Reviewer" perspektifiyle inceler ve **severity seviyelendirilmiş** bulgular döner.
 
@@ -162,7 +162,7 @@ Sorguyla ilgili dosyaları "Senior Code Reviewer" perspektifiyle inceler ve **se
 
 ```json
 {
-  "name": "review_code",
+  "name": "review",
   "arguments": {
     "query": "kullanıcı doğrulama",
     "categories": ["Security", "ErrorHandling"],
@@ -194,13 +194,13 @@ Sorguyla ilgili dosyaları "Senior Code Reviewer" perspektifiyle inceler ve **se
 }
 ```
 
-Önce `build_context` çağrılmış olmalı. `find_bugs` araç olarak korunur — hızlı/basit pattern tarama için; `review_code` ise yapılandırılmış, kategori bazlı ve impact/recommendation içeren derinlemesine inceleme.
+Önce `build_context` çağrılmış olmalı. `find_bugs` araç olarak korunur — hızlı/basit pattern tarama için; `review` ise yapılandırılmış, kategori bazlı ve impact/recommendation içeren derinlemesine inceleme.
 
 ---
 
 ## Audit Araçları — APaaS + Role-Based MCPs
 
-`review_code` "Senior Code Reviewer" rolünün ilk örneği. Aynı altyapı ile **8 yeni rol-bazlı araç** eklendi. Hepsi `Finding[]`-benzeri yapılandırılmış çıktı verir (severity / category / impact / recommendation), opsiyonel LLM enrichment'a hazırdır.
+`review` "Senior Code Reviewer" rolünün ilk örneği. Aynı altyapı ile **8 yeni rol-bazlı araç** eklendi. Hepsi `Finding[]`-benzeri yapılandırılmış çıktı verir (severity / category / impact / recommendation), opsiyonel LLM enrichment'a hazırdır.
 
 ### APaaS Araçları
 
@@ -319,7 +319,7 @@ Finding üretmez — yapılandırılmış status raporu döner:
 
 ## LLM Enrichment (Opsiyonel)
 
-`review_code` ve tüm audit araçları, geçerli API anahtarı sağlandığında her finding'i daha derin bir insight ile zenginleştirir.
+`review` ve tüm audit araçları, geçerli API anahtarı sağlandığında her finding'i daha derin bir insight ile zenginleştirir.
 
 **Varsayılan:** kapalı. Hiçbir HTTP çağrısı yapılmaz, `@anthropic-ai/sdk` paketi çekilmez bile (optionalDependencies).
 

@@ -56,8 +56,8 @@ async function main() {
   })
   if (ts.result) process.stdout.write(`  TS source files: ${(ts.result as any).sourceFileCount}\n`)
 
-  // review_code — query-driven, basit bir sorgu
-  const review = await step("review_code (query='controller')", () =>
+  // review — query-driven, basit bir sorgu
+  const review = await step("review (query='controller')", () =>
     reviewCode("controller", { minSeverity: "Medium" })
   )
   if (review.result) {
@@ -140,7 +140,7 @@ async function main() {
   // Özet
   process.stdout.write("\n=== Özet ===\n")
   const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, pm, events]
-  const labels = ["build_context", "review_code", "api_contract_audit", "frontend_compliance",
+  const labels = ["build_context", "review", "api_contract_audit", "frontend_compliance",
     "tenant_isolation_audit", "arch_audit", "qa_audit", "devops_audit", "pm_status", "domain_events_map"]
   for (let i = 0; i < all.length; i++) {
     const r = all[i]

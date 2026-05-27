@@ -124,9 +124,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
-      name: "review_code",
+      name: "review",
       description:
-        "Sorguyla ilgili kaynak dosyaları enterprise-grade code review'dan geçirir. " +
+        "Kod kalitesi review'ı — query ile bulunan kaynak dosyaları enterprise-grade " +
+        "code review'dan geçirir. " +
         "Security, Architecture, Performance, ErrorHandling kategorilerinde " +
         "severity seviyelendirilmiş (Critical/High/Medium/Low/Suggestion) bulgular üretir. " +
         "TS/JS: Node tarafında TS Compiler API ile semantic analiz. " +
@@ -385,7 +386,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "find_bugs":
         return { content: [{ type: "text", text: JSON.stringify(findBug(query()), null, 2) }] }
 
-      case "review_code": {
+      case "review": {
         const opts = (args as { categories?: Category[]; minSeverity?: Severity } | undefined) ?? {}
         return {
           content: [{

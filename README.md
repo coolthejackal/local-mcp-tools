@@ -22,7 +22,7 @@ perspektifleri.
 - **Gizli bilgi maskeleme** — API key, token, şifre, bağlantı dizgisi otomatik gizlenir
 - **Çok dilli** — TypeScript/JavaScript ve C#/.NET
 - **Monorepo** — frontend ve backend ayrı ayrı, karışmadan
-- **Code review + Audit Suite** — `review_code` + 8 audit aracı: TS Compiler API + Roslyn semantic model ile statik kural motoru
+- **Code review + Audit Suite** — `review` + 8 audit aracı: TS Compiler API + Roslyn semantic model ile statik kural motoru
 - **Opsiyonel LLM enrichment** — API anahtarı verilirse her bulguya daha derin insight, kapalıyken 0 HTTP çağrısı
 
 ---
@@ -50,7 +50,7 @@ ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     ├─ Navigasyon (6):  build_context / smart_context / final_context /
     │                   find_functions / find_bugs / read_manifest
     │
-    ├─ Code Review:     review_code   (Senior Code Reviewer rolü)
+    ├─ Code Review:     review   (Senior Code Reviewer rolü)
     │
     ├─ APaaS Audit (4): api_contract_audit   (endpoint envanteri + Postman drift)
     │                   frontend_compliance  (axios/DX/interceptor)
@@ -119,7 +119,7 @@ Monorepo'da her alt proje (backend, frontend …) kendi manifest'ini alır — k
 - Tarama `CTX_ROOT` dışına çıkamaz; sembolik link ile kaçış engellenir
 - Yalnız `.ts` `.tsx` `.js` `.jsx` `.cs` dosyaları okunur
 - API key, token, şifre, DB bağlantı dizgisi, PEM anahtarı, JWT otomatik maskelenir
-- `review_code` aracı **statik analiz** yapar — hiçbir kod çalıştırılmaz, ağa bağlanılmaz
+- `review` aracı **statik analiz** yapar — hiçbir kod çalıştırılmaz, ağa bağlanılmaz
 
 ---
 
@@ -128,7 +128,7 @@ Monorepo'da her alt proje (backend, frontend …) kendi manifest'ini alır — k
 ```text
 Claude → build_context           (ilk oturumda bir kez)
        → smart_context "ödeme"   (kavramla ilgili dosyaları bulur)
-       → review_code "ödeme"     (aynı kapsamı code review'dan geçirir)
+       → review "ödeme"     (aynı kapsamı code review'dan geçirir)
        → api_contract_audit      (endpoint envanteri + Postman drift)
        → frontend_compliance "login"  (axios/DX/interceptor kontrolü)
        → tenant_isolation_audit  (EF Core HasQueryFilter eksikleri)
