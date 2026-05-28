@@ -130,6 +130,7 @@ Claude sırasıyla şunları yapar:
 | `devops_audit` | DevOps: Dockerfile (multi-stage, non-root), docker-compose (healthcheck, secret), .env secrets, CI workflow. |
 | `security_audit` | Security Engineer: kod-AST dışı baseline — repo-wide config secrets, npm/dotnet CVE, HTTP headers, cookies, JWT/Identity config, license uyumu. |
 | `docs_audit` | Documentation Writer: README/CLAUDE.md/docs/ kalitesi — link rot, broken CLAUDE.md references, freshness, ADR kalite, modül context doc. |
+| `a11y_audit` | Accessibility Engineer: WCAG 2.1/2.2 statik kuralları — img alt, button accessible name, input-label association, div-as-button, heading sırası, html lang. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -282,6 +283,40 @@ Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'�
 > **Çağrı rolü farkı:**
 > - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
 > - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
+
+#### `a11y_audit`
+
+Accessibility Engineer perspektifi — WCAG 2.1/2.2 statik kontrolleri. JSX/TSX'te TS Compiler API ile gezinir; Roslyn gerekmez. Dinamik kontroller (renk kontrastı, focus management, ARIA live regions) **bu MVP'de yok** — bunlar için runtime axe-core / Lighthouse gerekir.
+
+| Rule | Severity | Tetik | Skip mantığı |
+|------|----------|-------|--------------|
+| `img-without-alt` | Medium | `<img>` `alt` yok | `aria-hidden="true"`, `role="presentation"` / `"none"` |
+| `button-no-accessible-name` | High | `<button>` text/`aria-label`/`aria-labelledby`/`title` yok | İçinde text node varsa **veya** üç ARIA attribute'tan biri varsa OK |
+| `input-without-label` | High | `<input>` label ile ilişkilenmemiş | `type="hidden/submit/button/reset"`, `aria-label`/`aria-labelledby`, aynı dosyada `<label htmlFor="<id>">` ile eşleşen `id` |
+| `link-no-href` | Medium | `<a>` `href` yok | (yok) |
+| `div-as-button` | Medium | `<div>`/`<span>`/`<p>`/`<section>` `onClick` ile interaktif | `role="button"`/`"link"` + `tabIndex` + `onKeyDown`/`onKeyPress`/`onKeyUp` üçlüsü |
+| `heading-skip-level` | Low | Dosya içi heading sıralaması atlanmış (h1→h3) | (yok) |
+| `lang-not-set` | Low | Root layout dosyasında `<html>` var ama `lang` yok | Sadece `app/layout.tsx`, `pages/_document.tsx`, `**/index.html` gibi root path'lerde tetiklenir |
+
+> **`lang-not-set` notu:** Bu kural i18n'in de alanı — `i18n_audit` eklendiğinde oraya taşınacak (duplicate önlemek için).
+
+**İstisna sözdizimi** (icon-only butonlar gibi bilinçli durumlar için):
+
+```jsx
+// @a11y-audit-allow: button-no-accessible-name — kapatma butonu yeterince tanıdık
+<button onClick={onClose}>
+  <CloseIcon />
+</button>
+```
+
+**Parametreler:**
+
+| Parametre | Açıklama |
+|-----------|----------|
+| `query` | Opsiyonel — verilirse `smart_context` ile sınırla, verilmezse tüm TSX/JSX |
+| `minSeverity` | Varsayılan `Low` |
+
+**Sınır:** Yalnız statik analiz; gerçek a11y testleri için runtime araçlar (axe-core, Lighthouse, Pa11y) tamamlayıcı.
 
 #### `docs_audit`
 

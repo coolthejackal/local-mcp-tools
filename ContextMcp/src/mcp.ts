@@ -23,6 +23,7 @@ import { runQaAudit } from "./audit/roles/qaAudit/runner"
 import { runDevOpsAudit } from "./audit/roles/devopsAudit/runner"
 import { runSecurityAudit } from "./audit/roles/securityAudit/runner"
 import { runDocsAudit } from "./audit/roles/docsAudit/runner"
+import { runA11yAudit } from "./audit/roles/a11yAudit/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -316,6 +317,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "a11y_audit",
+      description:
+        "Accessibility Engineer perspektifi — WCAG 2.1/2.2 statik a11y kuralları. " +
+        "JSX/TSX'te img alt, button accessible name, input-label association, link href, " +
+        "div-as-button, heading sıralaması, html lang. Default: tüm TSX/JSX; query verilirse " +
+        "smart_context ile sınırla. İstisna yorumu: " +
+        "// @a11y-audit-allow: <rule-name> — <gerekçe>",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "Opsiyonel — verilirse yalnız ilgili dosyalar (smart_context). Verilmezse tüm TSX/JSX.",
+          },
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
       name: "docs_audit",
       description:
         "Documentation Writer perspektifi — README, CLAUDE.md, docs/ klasörü kalitesi. " +
@@ -515,6 +539,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "devops_audit": {
         const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
         const result = await runDevOpsAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "a11y_audit": {
+        const opts = (args as { query?: string; minSeverity?: Severity } | undefined) ?? {}
+        const result = await runA11yAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 
