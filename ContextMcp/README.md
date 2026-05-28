@@ -131,6 +131,7 @@ Claude sırasıyla şunları yapar:
 | `security_audit` | Security Engineer: kod-AST dışı baseline — repo-wide config secrets, npm/dotnet CVE, HTTP headers, cookies, JWT/Identity config, license uyumu. |
 | `docs_audit` | Documentation Writer: README/CLAUDE.md/docs/ kalitesi — link rot, broken CLAUDE.md references, freshness, ADR kalite, modül context doc. |
 | `a11y_audit` | Accessibility Engineer: WCAG 2.1/2.2 statik kuralları — img alt, button accessible name, input-label association, div-as-button, heading sırası, html lang. |
+| `database_audit` | Database Engineer: EF Core statik analizi — missing index, AsNoTracking eksikliği, FromSqlRaw unsafe, destructive migration, N+1 foreach. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -283,6 +284,30 @@ Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'�
 > **Çağrı rolü farkı:**
 > - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
 > - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
+
+#### `database_audit`
+
+Database / Data Engineer perspektifi — **EF Core odaklı statik analiz**. `tenant_isolation_audit` tenant filter'larını kapsar; `database_audit` data-layer mechanics'a (query patterns, index strategy, migration safety) odaklanır. Çakışma yok.
+
+Roslyn `db-audit` subkomutu üzerinden çalışır (`CSharpCompilation` + `SemanticModel`). Pass 1: HasIndex/[Index] envanteri çıkarılır. Pass 2: DbSet → entity haritası. Pass 3: 5 kural her dosyada çalıştırılır.
+
+| Rule | Severity | Tetik | Skip mantığı |
+|------|----------|-------|--------------|
+| `missing-index` | High | `db.X.Where(x => x.Y == ...)` → `Y` için `HasIndex(x => x.Y)` veya `[Index(nameof(Y))]` yok | Primary key (`Id`, `*Id` suffix) ve tenant kolonları (`TenantId`/`WorkspaceId`/`OrganizationId`) — bunlar zaten indexli kabul edilir |
+| `from-sql-raw-unsafe` | High | `FromSqlRaw`/`ExecuteSqlRaw`/`ExecuteSqlRawAsync` çağrısı string literal değil (interpolation veya concat) | İlk argüman saf string literal |
+| `destructive-migration-step` | High | `Migrations/` altındaki dosyada `Up()` metodunda `DropColumn`/`DropTable`/`DropForeignKey`/`DropPrimaryKey`/`DropIndex` çağrısı | Hemen üstünde `//` veya `/*` yorum satırı |
+| `missing-asnotracking` | Medium | DbSet zinciri terminal read-only op'a (ToListAsync, FirstAsync, CountAsync vb.) bağlanıyor ama `.AsNoTracking()` yok | Zincirde `AsNoTracking()` veya `AsNoTrackingWithIdentityResolution()` var |
+| `n-plus-one-foreach` | Medium | `foreach` body'sinde DbContext üzerinden read-only sorgu | (yok — heuristik, kullanıcı değerlendirir) |
+
+**Read-only terminal operatörler (AsNoTracking ve N+1 için):** ToListAsync, ToArrayAsync, ToDictionaryAsync, ToHashSetAsync, FirstAsync, FirstOrDefaultAsync, SingleAsync, SingleOrDefaultAsync, CountAsync, LongCountAsync, AnyAsync, AllAsync, MinAsync, MaxAsync, SumAsync, AverageAsync.
+
+**Parametreler:**
+
+| Parametre | Açıklama |
+|-----------|----------|
+| `minSeverity` | Varsayılan `Low` |
+
+**Sınır:** Yalnız EF Core. Dapper, ADO.NET, MongoDB driver bu MVP'de değil.
 
 #### `a11y_audit`
 

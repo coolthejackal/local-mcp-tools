@@ -6,6 +6,7 @@ using ContextMcp.Roslyn.Audit.ApiContract;
 using ContextMcp.Roslyn.Audit.TenantIsolation;
 using ContextMcp.Roslyn.Audit.ArchGraph;
 using ContextMcp.Roslyn.Audit.DomainEvents;
+using ContextMcp.Roslyn.Audit.DatabaseAudit;
 
 // Argümanlar:
 //   ContextMcp.Roslyn manifest <kaynakKök> <çıktıDosyası>
@@ -26,7 +27,7 @@ if (args.Length < 2)
 
 string subcommand;
 string[] rest;
-if (args[0] is "manifest" or "review" or "api-contract" or "tenant-isolation" or "arch-graph" or "domain-events")
+if (args[0] is "manifest" or "review" or "api-contract" or "tenant-isolation" or "arch-graph" or "domain-events" or "db-audit")
 {
     subcommand = args[0];
     rest = args.Skip(1).ToArray();
@@ -46,6 +47,7 @@ return subcommand switch
     "tenant-isolation" => RunTenantIsolation(rest),
     "arch-graph" => RunArchGraph(rest),
     "domain-events" => RunDomainEvents(rest),
+    "db-audit" => RunDbAudit(rest),
     _ => Fail($"Bilinmeyen subkomut: {subcommand}"),
 };
 
@@ -203,5 +205,22 @@ static int RunDomainEvents(string[] a)
     Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
     File.WriteAllText(outputFile, json);
     Console.Error.WriteLine($"[ContextMcp.Roslyn] domain-events: {result.Publishers.Count} publisher, {result.Consumers.Count} consumer → {outputFile}");
+    return 0;
+}
+
+static int RunDbAudit(string[] a)
+{
+    if (a.Length < 2) return Fail("db-audit: <kaynakKök> <çıktıDosyası> gerekli.");
+    var sourceRoot = Path.GetFullPath(a[0]);
+    var outputFile = Path.GetFullPath(a[1]);
+    if (!Directory.Exists(sourceRoot)) return Fail($"Kaynak dizin bulunamadı: {sourceRoot}");
+
+    var findings = DatabaseAuditRunner.Run(sourceRoot);
+    var json = JsonSerializer.Serialize(
+        findings,
+        new JsonSerializerOptions { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+    Directory.CreateDirectory(Path.GetDirectoryName(outputFile)!);
+    File.WriteAllText(outputFile, json);
+    Console.Error.WriteLine($"[ContextMcp.Roslyn] db-audit: {findings.Count} bulgu → {outputFile}");
     return 0;
 }

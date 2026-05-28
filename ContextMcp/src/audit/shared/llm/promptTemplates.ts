@@ -16,6 +16,7 @@ export type RoleKey =
   | "domain-events-analyst"
   | "documentation-writer"
   | "accessibility-engineer"
+  | "database-engineer"
 
 // Ortak güvenlik talimatları — her prompt'a eklenir.
 const SECURITY_PREAMBLE = [
@@ -74,6 +75,10 @@ const ROLE_PERSONAS: Record<RoleKey, string> = {
     "You are an accessibility (a11y) engineer focused on WCAG 2.1/2.2 conformance. " +
     "Focus on screen reader compatibility, keyboard navigation, ARIA semantics, and concrete " +
     "ARIA attribute/element fixes. Suggest exact replacements when possible.",
+  "database-engineer":
+    "You are a senior database / data platform engineer. Focus on EF Core query patterns, " +
+    "index strategy, migration safety, and concrete query/migration rewrites. " +
+    "Tenant isolation belongs to a separate auditor — stay on data-layer mechanics.",
 }
 
 export function systemPromptFor(role: RoleKey): string {

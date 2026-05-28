@@ -24,6 +24,7 @@ import { runDevOpsAudit } from "./audit/roles/devopsAudit/runner"
 import { runSecurityAudit } from "./audit/roles/securityAudit/runner"
 import { runDocsAudit } from "./audit/roles/docsAudit/runner"
 import { runA11yAudit } from "./audit/roles/a11yAudit/runner"
+import { runDatabaseAudit } from "./audit/roles/databaseAudit/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -317,6 +318,27 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "database_audit",
+      description:
+        "Database / Data Engineer perspektifi — EF Core odaklı statik kurallar: " +
+        "missing-index (Where kolonu HasIndex/[Index]'te yok), from-sql-raw-unsafe " +
+        "(FromSqlRaw/ExecuteSqlRaw + concat/interpolation), destructive-migration-step " +
+        "(Up()'ta DropColumn/DropTable + yorum yok), missing-asnotracking (read-only " +
+        "sorguda AsNoTracking yok), n-plus-one-foreach (foreach içinde DbContext sorgusu). " +
+        "Tenant filter kuralları tenant_isolation_audit'tedir; bu araç data-layer " +
+        "mechanics'a odaklanır.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
       name: "a11y_audit",
       description:
         "Accessibility Engineer perspektifi — WCAG 2.1/2.2 statik a11y kuralları. " +
@@ -545,6 +567,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "a11y_audit": {
         const opts = (args as { query?: string; minSeverity?: Severity } | undefined) ?? {}
         const result = await runA11yAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "database_audit": {
+        const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
+        const result = await runDatabaseAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 

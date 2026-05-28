@@ -1,7 +1,7 @@
 # ContextMcp.Roslyn
 
 [`ContextMcp`](../ContextMcp/) MCP sunucusunun **C# analiz bileşeni**. Roslyn
-(`Microsoft.CodeAnalysis`) ile C# kaynak kodunu parse eder. Altı subkomut sunar:
+(`Microsoft.CodeAnalysis`) ile C# kaynak kodunu parse eder. Yedi subkomut sunar:
 
 1. **`manifest`** — `*.cs` dosyalarından `mcp-index.json` üretir (syntax tree).
 2. **`review`** — Verilen dosyaları enterprise code review'dan geçirir (Security/Architecture/Performance/ErrorHandling, semantic model).
@@ -9,6 +9,7 @@
 4. **`tenant-isolation`** — EF Core multi-tenant analizi: DbContext'ler, `HasQueryFilter` zincirleri, `.IgnoreQueryFilters()` çağrıları + yorum durumu.
 5. **`arch-graph`** — `.csproj` ProjectReference grafından proje düğümleri ve katman atamaları.
 6. **`domain-events`** — Publisher/Consumer pattern keşfi (IEventBus.PublishAsync<T>, IEventHandler<T> vb.) — cross-file compilation.
+7. **`db-audit`** — EF Core odaklı kurallar: missing-index (Where kolonu HasIndex/[Index]'te yok), from-sql-raw-unsafe, destructive-migration-step, missing-asnotracking, n-plus-one-foreach.
 
 > **Bu bir MCP sunucusu değildir.** MCP protokolü konuşmaz. `ContextMcp`'nin subprocess
 > olarak çağırdığı bir komut satırı aracıdır — normalde elle çalıştırılmaz.
@@ -239,7 +240,7 @@ tip / sembol bilgisine erişilir (örn. `string += ...` için sol tarafın gerç
 
 | Dosya | İçerik |
 |-------|--------|
-| `Program.cs` | Giriş noktası — 6 subkomut yönlendirmesi (manifest / review / api-contract / tenant-isolation / arch-graph / domain-events) |
+| `Program.cs` | Giriş noktası — 7 subkomut yönlendirmesi (manifest / review / api-contract / tenant-isolation / arch-graph / domain-events / db-audit) |
 | `Extractor.cs` | Manifest için Roslyn tip / method / attribute / DI çıkarımı |
 | `Models.cs` | Manifest JSON modelleri (`ManifestRoot`, `FileEntry`, `FuncEntry`) |
 | `Review/Finding.cs` + `IRule.cs` + `ReviewRunner.cs` | Code review altyapısı (CSharpCompilation + SemanticModel) |
@@ -248,6 +249,7 @@ tip / sembol bilgisine erişilir (örn. `string += ...` için sol tarafın gerç
 | `Audit/TenantIsolation/TenantIsolationRunner.cs` | `tenant-isolation` subkomutu — DbContext + HasQueryFilter zincirleri |
 | `Audit/ArchGraph/ArchGraphRunner.cs` | `arch-graph` subkomutu — .csproj ProjectReference + layer tespiti |
 | `Audit/DomainEvents/DomainEventsRunner.cs` | `domain-events` subkomutu — publisher/consumer pattern keşfi (cross-file) |
+| `Audit/DatabaseAudit/DatabaseAuditRunner.cs` | `db-audit` subkomutu — EF Core query/index/migration kuralları |
 
 ---
 
