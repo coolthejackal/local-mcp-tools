@@ -17,6 +17,7 @@ import { runSecurityAudit } from "../src/audit/roles/securityAudit/runner"
 import { runDocsAudit } from "../src/audit/roles/docsAudit/runner"
 import { runA11yAudit } from "../src/audit/roles/a11yAudit/runner"
 import { runDatabaseAudit } from "../src/audit/roles/databaseAudit/runner"
+import { runObservabilityAudit } from "../src/audit/roles/observabilityAudit/runner"
 import { runPmStatus } from "../src/audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "../src/audit/apaas/domainEventsMap/runner"
 import { CONFIG } from "../src/core/config"
@@ -163,6 +164,15 @@ async function main() {
     process.stdout.write(`  byRule: ${JSON.stringify(r.byRule)}\n`)
   }
 
+  const observability = await step("observability_audit", () =>
+    runObservabilityAudit({ minSeverity: "Low" })
+  )
+  if (observability.result) {
+    const r = observability.result as any
+    process.stdout.write(`  csFiles: ${r.scanned.csFiles}, apiProjects: ${r.scanned.apiProjects}, findings: ${r.findings.length}\n`)
+    process.stdout.write(`  byRule: ${JSON.stringify(r.byRule)}\n`)
+  }
+
   const pm = await step("pm_status", () =>
     runPmStatus({ sinceDays: 30 })
   )
@@ -182,10 +192,11 @@ async function main() {
 
   // Özet
   process.stdout.write("\n=== Özet ===\n")
-  const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, security, docs, a11y, database, pm, events]
+  const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, security, docs, a11y, database, observability, pm, events]
   const labels = ["build_context", "review", "api_contract_audit", "frontend_compliance",
     "tenant_isolation_audit", "arch_audit", "qa_audit", "devops_audit", "security_audit",
-    "docs_audit", "a11y_audit", "database_audit", "pm_status", "domain_events_map"]
+    "docs_audit", "a11y_audit", "database_audit", "observability_audit",
+    "pm_status", "domain_events_map"]
   for (let i = 0; i < all.length; i++) {
     const r = all[i]
     process.stdout.write(`  ${r.ok ? "✓" : "✗"} ${labels[i].padEnd(28)} ${(r.durationMs / 1000).toFixed(2).padStart(6)}s\n`)

@@ -25,6 +25,7 @@ import { runSecurityAudit } from "./audit/roles/securityAudit/runner"
 import { runDocsAudit } from "./audit/roles/docsAudit/runner"
 import { runA11yAudit } from "./audit/roles/a11yAudit/runner"
 import { runDatabaseAudit } from "./audit/roles/databaseAudit/runner"
+import { runObservabilityAudit } from "./audit/roles/observabilityAudit/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -318,6 +319,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "observability_audit",
+      description:
+        "Observability / SRE perspektifi — structured logging discipline (interpolation/concat " +
+        "ihlali), correlation ID middleware varlığı, healthcheck endpoint, OpenTelemetry " +
+        "instrumentation, log içinde PII sızıntısı. API project tespitiyle false-positive " +
+        "azaltma (UseEndpoints/MapControllers sinyali olan Program.cs'lerde tetiklenir).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
       name: "database_audit",
       description:
         "Database / Data Engineer perspektifi — EF Core odaklı statik kurallar: " +
@@ -573,6 +592,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "database_audit": {
         const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
         const result = await runDatabaseAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "observability_audit": {
+        const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
+        const result = await runObservabilityAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 

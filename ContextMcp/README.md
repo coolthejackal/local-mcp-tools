@@ -132,6 +132,7 @@ Claude sırasıyla şunları yapar:
 | `docs_audit` | Documentation Writer: README/CLAUDE.md/docs/ kalitesi — link rot, broken CLAUDE.md references, freshness, ADR kalite, modül context doc. |
 | `a11y_audit` | Accessibility Engineer: WCAG 2.1/2.2 statik kuralları — img alt, button accessible name, input-label association, div-as-button, heading sırası, html lang. |
 | `database_audit` | Database Engineer: EF Core statik analizi — missing index, AsNoTracking eksikliği, FromSqlRaw unsafe, destructive migration, N+1 foreach. |
+| `observability_audit` | SRE / Observability: structured logging discipline, correlation ID middleware, healthcheck endpoint, OpenTelemetry, log içinde PII. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -284,6 +285,29 @@ Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'�
 > **Çağrı rolü farkı:**
 > - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
 > - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
+
+#### `observability_audit`
+
+Observability / SRE Engineer perspektifi — production trace ve incident hazırlığı için statik kontroller. **TS-only** (text scan + regex; Roslyn yok). API project tespitiyle false-positive azaltma: `WebApplication.CreateBuilder`, `app.UseEndpoints/MapControllers/MapGet/Map*Endpoints` sinyali olan Program.cs/Startup.cs'lerde tetiklenir.
+
+| Rule | Severity | Tetik | Skip mantığı |
+|------|----------|-------|--------------|
+| `log-string-interpolation` | Medium | `_logger.LogX($"...")` interpolated string | (yok — interpolation her zaman structured logging ihlali) |
+| `log-string-concat` | Medium | `_logger.LogX("..." + var)` string concat | (yok) |
+| `missing-correlation-id` | Medium | API project Program.cs'inde correlation ID sinyali yok | `UseMiddleware<*Correlation*>`, `UseCorrelationId`, `AddCorrelationId`, `TraceIdentifier`, `X-Correlation-Id` herhangi birinden biri varsa OK |
+| `missing-healthcheck` | Low | API project'te `AddHealthChecks` veya `MapHealthChecks` yok | İkisinden biri varsa OK |
+| `missing-otel` | Suggestion | API project'te OpenTelemetry / ActivitySource yok | `AddOpenTelemetry`, `WithTracing`, `WithMetrics`, `new ActivitySource`, `UseOpenTelemetry` herhangi biri |
+| `pii-in-log` | High | Logger çağrı argümanlarında PII kelime tespit (password, ssn, creditcard, cvv, tckn, pwd vb.) | (yok — heuristik, kullanıcı doğrular) |
+
+**Logger pattern'i:** `(_logger\|logger\|_log\|log).Log(Trace\|Debug\|Information\|Warning\|Error\|Critical)\(...\)` — Microsoft.Extensions.Logging, Serilog ile uyumlu.
+
+**Parametreler:**
+
+| Parametre | Açıklama |
+|-----------|----------|
+| `minSeverity` | Varsayılan `Low` (Suggestion gizlenir) |
+
+**Sınır:** Log içeriği runtime'da yapılır — gerçek PII sızıntısı tarama log aggregator'da (Seq/Loki/Splunk) yapılmalı. Bu MVP kod-seviyesi ihlal tespiti.
 
 #### `database_audit`
 
