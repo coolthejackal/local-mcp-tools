@@ -216,6 +216,130 @@ internal sealed class MissingAuthorizeRule : IRule
         method.Modifiers.Any(m => m.Text == "public");
 }
 
+internal sealed class ConfigFallbackRule : IRule
+{
+    public string Name => "no-hardcoded-config-fallback";
+    public string Category => "Security";
+
+    // Config indexer'ın okunduğu tipik tanımlayıcılar: Configuration["x"], cfg["x"],
+    // config["x"], _config["x"] ve builder.Configuration["x"] (member access → "Configuration").
+    private static readonly HashSet<string> ConfigIdentifiers = new(StringComparer.Ordinal)
+    {
+        "Configuration", "cfg", "config", "_config",
+    };
+
+    public IEnumerable<Finding> Check(SyntaxTree tree, SemanticModel model, string filePath)
+    {
+        var root = tree.GetRoot();
+
+        // 1 & 2 & 4) Coalesce: <config-source> ?? "<literal>"
+        foreach (var bin in root.DescendantNodes().OfType<BinaryExpressionSyntax>())
+        {
+            if (!bin.IsKind(SyntaxKind.CoalesceExpression)) continue;
+
+            var literal = StringLiteralValue(bin.Right);
+            if (literal is null) continue;
+
+            bool isConfigIndexer = IsConfigIndexer(bin.Left);
+            bool isConnString = IsGetConnectionString(bin.Left);
+            if (!isConfigIndexer && !isConnString) continue;
+
+            string source = isConnString ? "GetConnectionString(...)" : "Config indexer";
+
+            if (IsUrlOrPath(literal))
+            {
+                // Pattern 1 (config indexer) & 2 (GetConnectionString) → high
+                yield return new Finding(
+                    "High", "Security", filePath, RuleHelpers.LineOf(bin),
+                    Name,
+                    $"{source} eksik olduğunda hardcoded URL/path literal'a düşüyor: \"{Truncate(literal)}\".",
+                    "Deployment/secret/environment config değeri silent fallback ile maskeleniyor; " +
+                    "eksik konfigürasyon fark edilmeden yanlış bir endpoint'e/path'e bağlanmaya yol açar, " +
+                    "kök CLAUDE.md güvenlik kuralını (fail-fast) ihlal eder.",
+                    "Fail-fast yap: cfg[key] is { Length: > 0 } v ? v : throw new InvalidOperationException(...). " +
+                    "Referans: Identity.API/Bootstrap/IdentityOptionsSetup.cs, " +
+                    "BackgroundJobs/Bootstrap/AuthenticationSetup.cs (Require()).");
+            }
+            else if (literal.Length == 0 && isConfigIndexer)
+            {
+                // Pattern 4 (info) → boş string fallback zorunlu config'i sessizce maskeler
+                yield return new Finding(
+                    "Suggestion", "Security", filePath, RuleHelpers.LineOf(bin),
+                    Name,
+                    "Config indexer eksik olduğunda boş string'e (\"\") düşüyor.",
+                    "Zorunlu olabilecek bir config değeri sessizce maskeleniyor; uygulama patlamak yerine " +
+                    "boş değerle çalışmaya devam eder ve hatanın kaynağı gizlenir.",
+                    "Değer zorunluysa fail-fast yap (Require()). Gerçekten opsiyonelse niyeti açık " +
+                    "bir varsayılanla veya yorum/Options validation ile belgele.");
+            }
+        }
+
+        // 3) Ternary: string.IsNullOrEmpty(x) ? "<url/path literal>" : ...
+        foreach (var cond in root.DescendantNodes().OfType<ConditionalExpressionSyntax>())
+        {
+            if (!IsNullOrEmptyCheck(cond.Condition)) continue;
+
+            var literal = StringLiteralValue(cond.WhenTrue);
+            if (literal is null || !IsUrlOrPath(literal)) continue;
+
+            yield return new Finding(
+                "High", "Security", filePath, RuleHelpers.LineOf(cond),
+                Name,
+                $"IsNullOrEmpty kontrolü boş/eksik config'i hardcoded URL/path'e düşürüyor: \"{Truncate(literal)}\".",
+                "Eksik konfigürasyon silent fallback ile maskeleniyor; yanlış endpoint/path'e sessizce " +
+                "bağlanma riski, kök CLAUDE.md fail-fast kuralını ihlal eder.",
+                "Boş değerde hardcoded literal yerine InvalidOperationException fırlat (Require() deseni).");
+        }
+    }
+
+    private static bool IsConfigIndexer(ExpressionSyntax expr)
+    {
+        if (expr is not ElementAccessExpressionSyntax element) return false;
+        return element.Expression switch
+        {
+            IdentifierNameSyntax id => ConfigIdentifiers.Contains(id.Identifier.Text),
+            MemberAccessExpressionSyntax ma => ma.Name.Identifier.Text == "Configuration",
+            _ => false,
+        };
+    }
+
+    private static bool IsGetConnectionString(ExpressionSyntax expr)
+    {
+        if (expr is not InvocationExpressionSyntax inv) return false;
+        return inv.Expression switch
+        {
+            MemberAccessExpressionSyntax ma => ma.Name.Identifier.Text == "GetConnectionString",
+            IdentifierNameSyntax id => id.Identifier.Text == "GetConnectionString",
+            _ => false,
+        };
+    }
+
+    // string.IsNullOrEmpty(...) çağrısı mı? Negasyon (!IsNullOrEmpty) hariç —
+    // negatif formda true dalı eksik-config durumu değildir.
+    private static bool IsNullOrEmptyCheck(ExpressionSyntax condition)
+    {
+        if (condition is not InvocationExpressionSyntax inv) return false;
+        return inv.Expression switch
+        {
+            MemberAccessExpressionSyntax ma => ma.Name.Identifier.Text == "IsNullOrEmpty",
+            IdentifierNameSyntax id => id.Identifier.Text == "IsNullOrEmpty",
+            _ => false,
+        };
+    }
+
+    private static string? StringLiteralValue(ExpressionSyntax expr) =>
+        expr is LiteralExpressionSyntax lit && lit.IsKind(SyntaxKind.StringLiteralExpression)
+            ? lit.Token.ValueText
+            : null;
+
+    private static bool IsUrlOrPath(string value) =>
+        value.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
+        value.StartsWith("/", StringComparison.Ordinal);
+
+    private static string Truncate(string s) => s.Length <= 60 ? s : s[..57] + "...";
+}
+
 internal static class SecurityRules
 {
     public static readonly IRule[] All = new IRule[]
@@ -224,5 +348,6 @@ internal static class SecurityRules
         new SqlInjectionRule(),
         new WeakCryptoRule(),
         new MissingAuthorizeRule(),
+        new ConfigFallbackRule(),
     };
 }
