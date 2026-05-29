@@ -26,6 +26,8 @@ import { runDocsAudit } from "./audit/roles/docsAudit/runner"
 import { runA11yAudit } from "./audit/roles/a11yAudit/runner"
 import { runDatabaseAudit } from "./audit/roles/databaseAudit/runner"
 import { runObservabilityAudit } from "./audit/roles/observabilityAudit/runner"
+import { runSupportAudit } from "./audit/roles/supportAudit/runner"
+import { runTechLeadBrief } from "./audit/roles/techLeadBrief/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -319,6 +321,50 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
       },
     },
     {
+      name: "support_audit",
+      description:
+        "Customer Support Engineer perspektifi — user-facing hata mesajı kalitesi: " +
+        "cryptic-exception-message (kısa/generic mesajlar), bare-exception-throw, " +
+        "untyped-exception (generic Exception kullanımı), error-code-missing " +
+        "(custom *Exception sınıfında ErrorCode/Code yok). Test dosyaları hariç tutulur.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
+      name: "tech_lead_brief",
+      description:
+        "Tech Lead / Engineering Manager perspektifi — meta-tool. Default 7 aracı " +
+        "(security/database/observability/qa/arch/devops/support) çağırır, severity " +
+        "breakdown + trend (önceki run snapshot'ına göre delta) + en kritik bulgular " +
+        "ile markdown brifing üretir. pmStatus her zaman dahil. " +
+        "Snapshot CTX_ROOT/.cache/mcp-tech-lead/snapshot.json içinde tutulur.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          includeDocs: {
+            type: "boolean",
+            description: "docs_audit'i de çağır (slow — büyük repolarda yavaş). Varsayılan: false.",
+          },
+          includeA11y: {
+            type: "boolean",
+            description: "a11y_audit'i de çağır. Varsayılan: false.",
+          },
+          writeMarkdown: {
+            type: "string",
+            description: "CTX_ROOT'a göre relative yol (örn: 'docs/tech-lead-brief.md'). Verilirse markdown bu dosyaya yazılır.",
+          },
+        },
+      },
+    },
+    {
       name: "observability_audit",
       description:
         "Observability / SRE perspektifi — structured logging discipline (interpolation/concat " +
@@ -598,6 +644,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "observability_audit": {
         const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
         const result = await runObservabilityAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "support_audit": {
+        const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
+        const result = await runSupportAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "tech_lead_brief": {
+        const opts = (args as {
+          includeDocs?: boolean
+          includeA11y?: boolean
+          writeMarkdown?: string | null
+        } | undefined) ?? {}
+        const result = await runTechLeadBrief(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 

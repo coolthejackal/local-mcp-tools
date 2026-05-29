@@ -133,6 +133,8 @@ Claude sırasıyla şunları yapar:
 | `a11y_audit` | Accessibility Engineer: WCAG 2.1/2.2 statik kuralları — img alt, button accessible name, input-label association, div-as-button, heading sırası, html lang. |
 | `database_audit` | Database Engineer: EF Core statik analizi — missing index, AsNoTracking eksikliği, FromSqlRaw unsafe, destructive migration, N+1 foreach. |
 | `observability_audit` | SRE / Observability: structured logging discipline, correlation ID middleware, healthcheck endpoint, OpenTelemetry, log içinde PII. |
+| `support_audit` | Customer Support: user-facing hata mesajı kalitesi — cryptic/bare exception throw, untyped Exception, custom *Exception sınıflarında ErrorCode eksikliği. |
+| `tech_lead_brief` | **Meta-tool**: 7 aracı (security/database/observability/qa/arch/devops/support) tek brifing markdown'a indirir. Önceki run snapshot'ı ile trend hesabı. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -285,6 +287,70 @@ Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'�
 > **Çağrı rolü farkı:**
 > - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
 > - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
+
+#### `support_audit`
+
+Customer Support Engineer perspektifi — user-facing hata mesajı kalitesi. Test dosyaları (`*Tests.cs`, `tests/` klasörü) hariç tutulur.
+
+| Rule | Severity | Tetik |
+|------|----------|-------|
+| `cryptic-exception-message` | Medium | `throw new <Type>("msg")` mesajı < 20 karakter VEYA ≤2 generic kelime ("error", "failed", "wrong", "invalid", "bad", "exception", "problem", "issue", "unknown" vb.) |
+| `bare-exception-throw` | Medium | `throw new <Type>()` — mesaj parametresi yok |
+| `untyped-exception` | Low | `throw new Exception(` veya `throw new System.Exception(` — domain spesifik tip değil |
+| `error-code-missing` | Suggestion | Custom exception sınıf (`class XException : Y`) tanımı var ama dosyada `ErrorCode`/`Code` field/property yok |
+
+#### `tech_lead_brief` (meta-tool)
+
+Engineering Manager / Tech Lead perspektifi — diğer 7 aracı çağırır, **tek brifing markdown** üretir. Önceki run snapshot'ı ile trend hesabı.
+
+**Çağrılan araçlar (default):**
+1. `security_audit` (`skipDependencyScan=true` — hızlı)
+2. `database_audit`
+3. `observability_audit`
+4. `qa_audit`
+5. `arch_audit`
+6. `devops_audit`
+7. `support_audit`
+
+**Opsiyonel:** `docs_audit`, `a11y_audit` (parametre ile dahil edilir).
+
+**Her zaman dahil:** `pm_status` (branch / commits / TODO / dead branches — bulgu değil, status).
+
+**Trend & snapshot:**
+
+İlk run'da `previousRunAt: null`, sonraki run'da delta hesaplanır. Snapshot dosyası:
+```
+${CTX_ROOT}/.cache/mcp-tech-lead/snapshot.json
+```
+
+**Markdown çıktısı (~50 satır):**
+
+```markdown
+# Tech Lead Brief — YYYY-MM-DD
+Duration: 4.6s · Total: 1070 findings · Trend: +12 (worse)
+
+## Project Pulse (last 30d)
+- Branch: develop
+- Commits: 507 · TODOs: 6 · Dead branches: 0
+
+## By Tool
+| Tool | Total | Critical | High | Medium | Duration |
+| ... |
+
+## Hotspot Files (most findings)
+## Most Active Rules
+## High-Priority Findings
+```
+
+**Parametreler:**
+
+| Parametre | Açıklama |
+|-----------|----------|
+| `includeDocs` | `docs_audit`'i de çağır (slow). Varsayılan `false`. |
+| `includeA11y` | `a11y_audit`'i de çağır. Varsayılan `false`. |
+| `writeMarkdown` | CTX_ROOT'a göre relative yol (örn: `"docs/tech-lead-brief.md"`). Verilirse markdown bu dosyaya yazılır. |
+
+**Sınır:** `topFindings` her araçtan sadece ilk 3'tür (output boyutu sınırı). Tüm bulgu detayları için ilgili aracı doğrudan çağır.
 
 #### `observability_audit`
 

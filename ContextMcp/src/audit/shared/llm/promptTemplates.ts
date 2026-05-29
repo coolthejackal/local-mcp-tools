@@ -18,6 +18,8 @@ export type RoleKey =
   | "accessibility-engineer"
   | "database-engineer"
   | "observability-engineer"
+  | "support-engineer"
+  | "tech-lead"
 
 // Ortak güvenlik talimatları — her prompt'a eklenir.
 const SECURITY_PREAMBLE = [
@@ -84,6 +86,14 @@ const ROLE_PERSONAS: Record<RoleKey, string> = {
     "You are an observability / SRE engineer. Focus on structured logging discipline, " +
     "trace propagation, healthcheck completeness, OpenTelemetry instrumentation, and " +
     "incident root-cause readiness. Suggest concrete library and config choices.",
+  "support-engineer":
+    "You are a customer support / production engineer. Focus on user-facing error message " +
+    "quality, error catalog completeness (codes, localization), and incident triage " +
+    "ergonomics. Suggest specific message rewrites and error code schemas.",
+  "tech-lead":
+    "You are an engineering manager / tech lead. Synthesize cross-cutting risk signals " +
+    "from multiple auditors. Focus on prioritization, trend interpretation, and team " +
+    "actions for the next week. Keep observations concise and decision-oriented.",
 }
 
 export function systemPromptFor(role: RoleKey): string {
