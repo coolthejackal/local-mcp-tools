@@ -28,6 +28,7 @@ import { runDatabaseAudit } from "./audit/roles/databaseAudit/runner"
 import { runObservabilityAudit } from "./audit/roles/observabilityAudit/runner"
 import { runSupportAudit } from "./audit/roles/supportAudit/runner"
 import { runTechLeadBrief } from "./audit/roles/techLeadBrief/runner"
+import { runPerfAudit } from "./audit/roles/perfAudit/runner"
 import { runPmStatus } from "./audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "./audit/apaas/domainEventsMap/runner"
 import { searchManifest, loadAnnotations, isManifestStale, listProjects } from "./core/manifestReader"
@@ -316,6 +317,35 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             type: "string",
             enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
             description: "Varsayılan: Low.",
+          },
+        },
+      },
+    },
+    {
+      name: "perf_audit",
+      description:
+        "Performance Engineer perspektifi — build artifact + asset + tasarım pattern: " +
+        "large-image-asset (public/static/assets altında >1MB), useMemo-missing-on-expensive " +
+        "(React inline chained array methods), peer-await-instead-of-whenall (peş peşe " +
+        "bağımsız await çağrıları — C# + TS), linq-materialize-in-loop (foreach içinde " +
+        ".ToList/.ToArray), bundle-large-chunk (Next.js .next/static/chunks veya " +
+        "webpack-stats.json varsa). `review` Performance kategorisi kod-AST'ye odaklanır; " +
+        "perf_audit asset + build + pattern katmanına.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          minSeverity: {
+            type: "string",
+            enum: ["Critical", "High", "Medium", "Low", "Suggestion"],
+            description: "Varsayılan: Low.",
+          },
+          largeImageBytesThreshold: {
+            type: "number",
+            description: "Resim eşiği (byte). Varsayılan: 1048576 (1 MB).",
+          },
+          largeChunkBytesThreshold: {
+            type: "number",
+            description: "Bundle chunk eşiği (byte). Varsayılan: 262144 (256 KB).",
           },
         },
       },
@@ -650,6 +680,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request: unknown) => {
       case "support_audit": {
         const opts = (args as { minSeverity?: Severity } | undefined) ?? {}
         const result = await runSupportAudit(opts)
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
+      }
+
+      case "perf_audit": {
+        const opts = (args as {
+          minSeverity?: Severity
+          largeImageBytesThreshold?: number
+          largeChunkBytesThreshold?: number
+        } | undefined) ?? {}
+        const result = await runPerfAudit(opts)
         return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] }
       }
 

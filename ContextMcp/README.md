@@ -135,6 +135,7 @@ Claude sırasıyla şunları yapar:
 | `observability_audit` | SRE / Observability: structured logging discipline, correlation ID middleware, healthcheck endpoint, OpenTelemetry, log içinde PII. |
 | `support_audit` | Customer Support: user-facing hata mesajı kalitesi — cryptic/bare exception throw, untyped Exception, custom *Exception sınıflarında ErrorCode eksikliği. |
 | `tech_lead_brief` | **Meta-tool**: 7 aracı (security/database/observability/qa/arch/devops/support) tek brifing markdown'a indirir. Önceki run snapshot'ı ile trend hesabı. |
+| `perf_audit` | Performance Engineer: build artifact + asset + tasarım pattern — large image asset, useMemo eksikliği, peer await→WhenAll, foreach içinde LINQ materialize, bundle chunk. |
 | `pm_status` | Project Manager: son N gün commit aktivitesi, dead branch'ler, WIP commits, TODO/FIXME envanteri (@owner). |
 | `domain_events_map` | Event publisher/consumer grafı — orphan-event, unimplemented-consumer, high-fanout-event. |
 
@@ -287,6 +288,28 @@ Security Engineer perspektifi — release-öncesi strategic güvenlik baseline'�
 > **Çağrı rolü farkı:**
 > - `review` = "Bu özellikteki **kod** güvenli mi?" (PR scope, tactical)
 > - `security_audit` = "Tüm projenin **güvenlik baseline'ı** nasıl?" (release-öncesi rapor, strategic)
+
+#### `perf_audit`
+
+Performance Engineer perspektifi — **build artifact + asset + tasarım pattern**. `review` Performance kategorisi kod-AST'ye odaklanır (await-in-loop, async-void, sync-fs-in-async), `perf_audit` ise asset + build + design pattern katmanını alır. Çakışma yok.
+
+| Rule | Severity | Tetik | Kapsam |
+|------|----------|-------|--------|
+| `large-image-asset` | Medium | `public/`, `static/`, `assets/`, `wwwroot/` altında resim > 1MB (default) | Tüm asset |
+| `usememo-missing-on-expensive` | Low | PascalCase TSX/JSX komponent içinde zincirleme `.filter().map().reduce().sort()` ama dosyada `useMemo`/`useCallback` hiç yok ya da yakınında değil | React TSX/JSX |
+| `peer-await-instead-of-whenall` | Medium | Peş peşe (≤2 boş satır arada) **3+** bağımsız `await` çağrısı (her biri farklı değişkene atanıyor ve birbirine ref vermiyor) | C# + TS |
+| `linq-materialize-in-loop` | Medium | `foreach { ... .ToList() / .ToArray() / .ToHashSet() ... }` brace-counting ile foreach scope tespiti. DbContext erişimi varsa skip (database_audit'in alanı) | C# |
+| `bundle-large-chunk` | Suggestion | `.next/static/chunks/*.js` > 256 KB (default) veya `webpack-stats.json` `assets[]` taraması | Frontend |
+
+**Parametreler:**
+
+| Parametre | Açıklama |
+|-----------|----------|
+| `minSeverity` | Varsayılan `Low` |
+| `largeImageBytesThreshold` | Varsayılan `1048576` (1 MB) |
+| `largeChunkBytesThreshold` | Varsayılan `262144` (256 KB) |
+
+**Sınır:** Statik analizle gerçek profil yapılamaz. Runtime CPU/memory profiler (dotMemory, Chrome DevTools, React DevTools Profiler) tamamlayıcıdır.
 
 #### `support_audit`
 

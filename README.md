@@ -31,7 +31,7 @@ perspektifleri.
 
 | Bileşen | Teknoloji | Rol |
 |---------|-----------|-----|
-| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; 22 araç sunar (navigasyon + review + audit suite + role-MCPs) |
+| [ContextMcp/](ContextMcp/) | Node.js / TypeScript | MCP sunucusu — Claude buna bağlanır; 23 araç sunar (navigasyon + review + audit suite + role-MCPs) |
 | [ContextMcp.Roslyn/](ContextMcp.Roslyn/) | .NET 9 / Roslyn | C# analiz + review + audit bileşeni — 6 subkomut: `manifest` / `review` / `api-contract` / `tenant-isolation` / `arch-graph` / `domain-events` |
 
 Yalnız **ContextMcp** bir MCP sunucusudur. **ContextMcp.Roslyn** protokol konuşmaz;
@@ -43,7 +43,7 @@ ContextMcp'nin C# kodu analiz/review/audit etmek için çağırdığı bir yard�
 
 ```
 Claude Code
-    │  MCP protokolü (stdio JSON-RPC) — 22 araç
+    │  MCP protokolü (stdio JSON-RPC) — 23 araç
     ▼
 ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     │
@@ -57,7 +57,7 @@ ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
     │                   tenant_isolation_audit (multi-tenant EF Core)
     │                   domain_events_map    (publisher/consumer grafı)
     │
-    └─ Role-Based (11): arch_audit            (Architect — layer/cyclic/god-project)
+    └─ Role-Based (12): arch_audit            (Architect — layer/cyclic/god-project)
                         qa_audit              (QA — test coverage gaps)
                         devops_audit          (DevOps — Dockerfile/compose/CI/.env)
                         security_audit        (Security — CVE/headers/cookies/auth config)
@@ -66,6 +66,7 @@ ContextMcp                    (Node.js / TypeScript — MCP sunucusu)
                         database_audit        (DB Engineer — EF Core index/AsNoTracking/migration)
                         observability_audit   (SRE — structured log/correlation/healthcheck/OTel)
                         support_audit         (Support — exception kalitesi + error catalog)
+                        perf_audit            (Perf Engineer — image/bundle/useMemo/WhenAll/LINQ)
                         tech_lead_brief       (Tech Lead — meta-tool, 7 araç → markdown brifing)
                         pm_status             (PM — git aktivite + TODO envanteri)
 

@@ -20,6 +20,7 @@ import { runDatabaseAudit } from "../src/audit/roles/databaseAudit/runner"
 import { runObservabilityAudit } from "../src/audit/roles/observabilityAudit/runner"
 import { runSupportAudit } from "../src/audit/roles/supportAudit/runner"
 import { runTechLeadBrief } from "../src/audit/roles/techLeadBrief/runner"
+import { runPerfAudit } from "../src/audit/roles/perfAudit/runner"
 import { runPmStatus } from "../src/audit/roles/pmStatus/runner"
 import { runDomainEventsMap } from "../src/audit/apaas/domainEventsMap/runner"
 import { CONFIG } from "../src/core/config"
@@ -184,6 +185,16 @@ async function main() {
     process.stdout.write(`  byRule: ${JSON.stringify(r.byRule)}\n`)
   }
 
+  const perf = await step("perf_audit", () =>
+    runPerfAudit({ minSeverity: "Low" })
+  )
+  if (perf.result) {
+    const r = perf.result as any
+    process.stdout.write(`  cs: ${r.scanned.csFiles}, ts: ${r.scanned.tsFiles}, images: ${r.scanned.imageAssets}, ` +
+      `bundleManifest: ${r.scanned.bundleManifestFound}, findings: ${r.findings.length}\n`)
+    process.stdout.write(`  byRule: ${JSON.stringify(r.byRule)}\n`)
+  }
+
   const brief = await step("tech_lead_brief (meta-tool)", () =>
     runTechLeadBrief({ includeDocs: false, includeA11y: false })
   )
@@ -213,11 +224,11 @@ async function main() {
 
   // Özet
   process.stdout.write("\n=== Özet ===\n")
-  const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, security, docs, a11y, database, observability, support, brief, pm, events]
+  const all = [build, review, apiContract, frontend, tenant, arch, qa, devops, security, docs, a11y, database, observability, support, perf, brief, pm, events]
   const labels = ["build_context", "review", "api_contract_audit", "frontend_compliance",
     "tenant_isolation_audit", "arch_audit", "qa_audit", "devops_audit", "security_audit",
     "docs_audit", "a11y_audit", "database_audit", "observability_audit",
-    "support_audit", "tech_lead_brief", "pm_status", "domain_events_map"]
+    "support_audit", "perf_audit", "tech_lead_brief", "pm_status", "domain_events_map"]
   for (let i = 0; i < all.length; i++) {
     const r = all[i]
     process.stdout.write(`  ${r.ok ? "✓" : "✗"} ${labels[i].padEnd(28)} ${(r.durationMs / 1000).toFixed(2).padStart(6)}s\n`)
